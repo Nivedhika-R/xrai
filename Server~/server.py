@@ -3,12 +3,13 @@ import os
 import time
 import asyncio
 import base64
-from threading import Thread, Event
+from threading import Thread
 from queue import Queue
 from collections import deque
 import logging
 import argparse
-from datetime import datetime, timedelta
+import soundfile as sf
+from datetime import datetime, timedelta, timezone
 
 import cv2
 from PIL import Image
@@ -21,10 +22,7 @@ import numpy as np
 from collections import defaultdict
 from aiohttp import web
 from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
-from aiortc.contrib.media import MediaRelay
-from av import AudioFrame, AudioFormat, AudioResampler, AudioFifo
-
-import speech_recognition as sr
+from av import AudioResampler
 
 from constants import *
 from chatgpt_helper import ChatGPTHelper
@@ -34,7 +32,7 @@ formatter = logging.Formatter('[%(asctime)s] [%(levelname).1s] %(message)s', dat
 handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger = logging.getLogger()
-logger.setLevel(logging.WARN)
+logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
 server_id = 0
@@ -50,66 +48,97 @@ image_deque = deque()
 chatgpt = ChatGPTHelper()
 llm_reply = ""
 
-class WebRTCAudioSource(sr.AudioSource):
-    def __init__(self, sample_rate=None, chunk_size=1024, sample_width=4):
-        # Those are the only 4 properties required by the recognizer.listen method
-        self.stream = WebRTCAudioSource.MicrophoneStream()
-        self.SAMPLE_RATE = sample_rate  # sampling rate in Hertz
-        self.CHUNK = chunk_size  # number of frames stored in each buffer
-        self.SAMPLE_WIDTH = sample_width  # size of each sample
+class WhisperProcessor:
+    def __init__(self, model_name="medium", record_timeout=5, phrase_timeout=3):
+        self.audio_model = whisper.load_model(model_name + ".en")
+        self.data_queue = Queue()
+        self.transcription = [""]
+        self.phrase_time = None
+        self.record_timeout = record_timeout
+        self.phrase_timeout = phrase_timeout
 
-    def __enter__(self):
-        return self
+    def feed_audio(self, pcm_bytes: bytes):
+        self.data_queue.put(pcm_bytes)
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        try:
-            self.stream.close()
-        finally:
-            self.stream = None
+    def run(self):
+        while True:
+            now = datetime.now(timezone.utc)
 
-    class MicrophoneStream(object):
-        def __init__(self):
-            self.stream = AudioFifo()
-            self.event = Event()
+            if not self.data_queue.empty():
+                phrase_complete = False
 
-        def write(self, frame: AudioFrame):
-            assert type(frame) is AudioFrame, 'Tried to write something that is not AudioFrame'
-            self.stream.write(frame=frame)
-            self.event.set()
+                if self.phrase_time and now - self.phrase_time > timedelta(seconds=self.phrase_timeout):
+                    phrase_complete = True
 
-        def read(self, size) -> bytes:
-            frames: AudioFrame = self.stream.read(size)
+                self.phrase_time = now
 
-            # while no frame, wait until some is written using an event
-            while frames is None:
-                self.event.wait()
-                self.event.clear()
-                frames = self.stream.read(size)
+                # Combine all audio in the queue
+                audio_data = b''.join(self.data_queue.queue)
+                self.data_queue.queue.clear()
 
-            # convert the frame to bytes
-            data: np.ndarray = frames.to_ndarray()
-            return data.tobytes()
+                # Convert to float32 PCM [-1.0, 1.0]
+                audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
 
-class AudioTransformTrack(MediaStreamTrack):
-    kind = 'audio'
+                # Transcribe with Whisper
+                result = self.audio_model.transcribe(audio_np, fp16=torch.cuda.is_available(), language="en")
+                text = result['text'].strip()
+
+                if phrase_complete:
+                    self.transcription.append(text)
+                else:
+                    self.transcription[-1] = text
+
+                if text:
+                    logger.info(f"\nUser said:\n{text}\n")
+
+            time.sleep(0.1)
+
+class RemoteAudioToWhisper(MediaStreamTrack):
+    kind = "audio"
 
     def __init__(self, track):
         super().__init__()
         self.track = track
-        rate = 16_000  # Whisper has a sample rate of 16000
-        audio_format = 's16p'
-        sample_width = AudioFormat(audio_format).bytes
-        self.resampler = AudioResampler(format=audio_format, layout='mono', rate=rate)
-        self.source = WebRTCAudioSource(sample_rate=rate, sample_width=sample_width)
+        self.buffer = bytearray()
+
+        self.whisper_processor = WhisperProcessor()
+        self.whisper_thread = Thread(target=self.whisper_processor.run, daemon=True)
+        self.whisper_thread.start()
+
+        self.sample_rate = 16000 # Whisper has a sample rate of 16000
+        self.resampler = AudioResampler(
+            format='s16',
+            layout='mono',
+            rate=self.sample_rate
+        )
+
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.debug_file = f"debug_audio_{now}.wav"
+        self.wav_writer = sf.SoundFile(
+            self.debug_file, mode='w', samplerate=self.sample_rate, channels=1, subtype='PCM_16'
+        )
 
     async def recv(self):
-        out_frame: AudioFrame = await self.track.recv()
-        out_frames = self.resampler.resample(out_frame)
+        frame = await self.track.recv()
 
-        for frame in out_frames:
-            self.source.stream.write(frame)
+        resampled_frames = self.resampler.resample(frame)
+        if not isinstance(resampled_frames, list):
+            resampled_frames = [resampled_frames]
 
-        return out_frame
+        for resampled in resampled_frames:
+            pcm_array = resampled.to_ndarray().astype(np.int16).flatten()
+            pcm_bytes = pcm_array.tobytes()
+
+            # Write to WAV (optional for debugging)
+            # self.wav_writer.write(pcm_array)
+
+            self.whisper_processor.feed_audio(pcm_bytes)
+
+        return frame
+
+    def stop(self):
+        self.wav_writer.close()
+        super().stop()
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -144,71 +173,9 @@ async def logout(request):
 
     return web.Response(status=200)
 
-def process_user_speech_thread(source: sr.AudioSource, model_name="small", record_timeout=4, phrase_timeout=3, energy_threshold=100):
-    logger.info("Starting speech recognition thread!")
-
-    audio_model = whisper.load_model(model_name + ".en")
-    data_queue = Queue()
-    phrase_time = None
-
-    transcription = ['']
-
-    recognizer = sr.Recognizer()
-    recognizer.energy_threshold = energy_threshold
-    recognizer.dynamic_energy_threshold = False
-
-    recognizer.adjust_for_ambient_noise(source)
-
-    def record_callback(_, audio:sr.AudioData) -> None:
-        # Grab the raw bytes and push it into the thread safe queue.
-        data = audio.get_raw_data()
-        data_queue.put(data)
-
-    recognizer.listen_in_background(source, record_callback, phrase_time_limit=record_timeout)
-
+async def dummy_consume(track):
     while True:
-        print("hello")
-        now = datetime.utcnow()
-        start = time.time()
-        # Pull raw recorded audio from the queue.
-        if not data_queue.empty():
-            phrase_complete = False
-            # If enough time has passed between recordings, consider the phrase complete.
-            # Clear the current working audio buffer to start over with the new data.
-            if phrase_time and now - phrase_time > timedelta(seconds=phrase_timeout):
-                phrase_complete = False
-            # If enough time has passed between recordings, consider the phrase complete.
-            # Clear the current working audio buffer to start over with the new data.
-            if phrase_time and now - phrase_time > timedelta(seconds=phrase_timeout):
-                phrase_complete = True
-            # This is the last time we received new audio data from the queue.
-            phrase_time = now
-
-            # Combine audio data from queue
-            audio_data = b''.join(data_queue.queue)
-            data_queue.queue.clear()
-
-            # Convert in-ram buffer to something the model can use directly without needing a temp file.
-            # Convert data from 16 bit wide integers to floating point with a width of 32 bits.
-            # Clamp the audio stream frequency to a PCM wavelength compatible default of 32768hz max.
-            audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
-
-            # Read the transcription.
-            result = audio_model.transcribe(audio_np, fp16=torch.cuda.is_available())
-            text = result['text'].strip()
-
-            # If we detected a pause between recordings, add a new item to our transcription.
-            # Otherwise edit the existing one.
-            if phrase_complete:
-                transcription.append(text)
-            else:
-                transcription[-1] = text
-
-            line = transcription[-1].lower()
-            if len(line) > 0 :
-                print('\n===\nUser question:\n', line, '\n===\n')
-
-        time.sleep(0.1)
+        await track.recv()
 
 # POST /post_offer/{id}
 async def post_offer(request):
@@ -234,15 +201,8 @@ async def post_offer(request):
             logger.info("Receiving video from client (we dont send video so we should never get here...)")
         elif track.kind == "audio":
             logger.info("Receiving audio from client!")
-
-            audio_relay = MediaRelay()
-            audio_track = audio_relay.subscribe(track)
-            if audio_track:
-                t = AudioTransformTrack(audio_track)
-                pc.addTrack(t)
-
-                thread = Thread(target=process_user_speech_thread, daemon=True, args=(t.source,))
-                thread.start()
+            audio_reader = RemoteAudioToWhisper(track)
+            asyncio.ensure_future(dummy_consume(audio_reader))
 
     logger.info("User %s posted SDP offer", client_id)
 
@@ -274,7 +234,6 @@ async def post_answer(request):
 
         created_offers.pop(to_id, None)
 
-        # Store answer in the exact format Unity expects
         created_answers[to_id] = {
             "id": from_id,
             "answer": {
@@ -412,13 +371,13 @@ def handle_images():
             if img is None:
                 break
 
+            # save image to disk
+            # img_path = os.path.join("images", f"image_c{client_id}_{timestamp}.png")
+            # cv2.imwrite(img_path, img)
+
             img = np.array(img)
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
-
-            # save image to disk
-            img_path = os.path.join("images", f"image_c{client_id}_{timestamp}.png")
-            cv2.imwrite(img_path, img)
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break
