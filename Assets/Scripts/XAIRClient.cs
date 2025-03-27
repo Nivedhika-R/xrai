@@ -3,7 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.WebRTC;
+using TMPro;
 using UnityEngine;
 
 public class XAIRClient : Singleton<XAIRClient>
@@ -15,17 +15,21 @@ public class XAIRClient : Singleton<XAIRClient>
     [SerializeField] private string port = "8000";
     [SerializeField] private bool noSSL = false;
 
-    private string serverAdress;
+    [SerializeField] private TextMeshProUGUI llmAreaText = null;
+
+    private string _serverUri;
 
     public Action<bool, string> OnWebRTCConnectionChanged;
 
-
-    private float _timer = 0.0f;
+    private float _sendImagetimer = 0.0f;
     private float _sendImageFreqHz = 5.0f;
 
+    private float _updateLLMResponseTimer = 0.0f;
+    private float _updateLLMResponseFreqHz = 1.0f;
+
     void Start() {
-        serverAdress = noSSL ? "http://" + ipAddress + ":" + port : "https://" + ipAddress + ":" + port;
-        Debug.Log("XAIRClient starting at " + serverAdress);
+        _serverUri = noSSL ? "http://" + ipAddress + ":" + port : "https://" + ipAddress + ":" + port;
+        Debug.Log("XAIRClient starting at " + _serverUri);
 
         WebRTCController.Instance.OnWebRTCConnectionStateChange += OnWebRTCConnectionStateChanged;
 
@@ -38,16 +42,28 @@ public class XAIRClient : Singleton<XAIRClient>
     {
         if (_serverCommunication != null)
         {
-            _timer += Time.deltaTime;
-            if (_timer >= 1.0f / _sendImageFreqHz)
+            _sendImagetimer += Time.deltaTime;
+            if (_sendImagetimer >= 1.0f / _sendImageFreqHz)
             {
-                _timer = 0.0f;
+                _sendImagetimer = 0.0f;
 
                 Matrix4x4 cameraToWorldMatrix, projectionMatrix;
                 byte[] imageBytes = _mediaManager.GetImage(out cameraToWorldMatrix, out projectionMatrix);
                 if (imageBytes != null)
                 {
                     _serverCommunication.SendImage(imageBytes, cameraToWorldMatrix, projectionMatrix);
+                }
+            }
+
+            _updateLLMResponseTimer += Time.deltaTime;
+            if (_updateLLMResponseTimer >= 1.0f / _updateLLMResponseFreqHz)
+            {
+                _updateLLMResponseTimer = 0.0f;
+
+                _serverCommunication.UpdateLLMResponse();
+                if (_serverCommunication.LLMResponse != "" && llmAreaText != null)
+                {
+                    llmAreaText.text = _serverCommunication.LLMResponse;
                 }
             }
         }
@@ -61,7 +77,7 @@ public class XAIRClient : Singleton<XAIRClient>
             yield return new WaitForSeconds(1);
         }
 
-        OnWebRTCConnectionChanged?.Invoke(true, serverAdress);
+        OnWebRTCConnectionChanged?.Invoke(true, _serverUri);
     }
 
     private void OnWebRTCConnectionStateChanged(WebRTCController.WebRTCConnectionState connectionState)

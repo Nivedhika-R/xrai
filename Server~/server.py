@@ -3,28 +3,38 @@ import os
 import time
 import asyncio
 import base64
-import threading
-import queue
+from threading import Thread, Event
+from queue import Queue
+from collections import deque
 import logging
 import argparse
+from datetime import datetime, timedelta
 
 import cv2
 from PIL import Image
 from io import BytesIO
+import whisper
+import torch
 
 import numpy as np
 
 from collections import defaultdict
 from aiohttp import web
-from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
-from av import VideoFrame
+from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
+from aiortc.contrib.media import MediaRelay
+from av import AudioFrame, AudioFormat, AudioResampler, AudioFifo
+
+import speech_recognition as sr
+
+from constants import *
+from chatgpt_helper import ChatGPTHelper
 
 # configure logging
 formatter = logging.Formatter('[%(asctime)s] [%(levelname).1s] %(message)s', datefmt='%H:%M:%S')
 handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.WARN)
 logger.addHandler(handler)
 
 server_id = 0
@@ -35,7 +45,71 @@ pcs = {}  # client_id: RTCPeerConnection
 recorders = {}  # client_id: MediaRecorder
 ices = defaultdict(list)
 
-image_queue = queue.Queue()
+image_deque = deque()
+
+chatgpt = ChatGPTHelper()
+llm_reply = ""
+
+class WebRTCAudioSource(sr.AudioSource):
+    def __init__(self, sample_rate=None, chunk_size=1024, sample_width=4):
+        # Those are the only 4 properties required by the recognizer.listen method
+        self.stream = WebRTCAudioSource.MicrophoneStream()
+        self.SAMPLE_RATE = sample_rate  # sampling rate in Hertz
+        self.CHUNK = chunk_size  # number of frames stored in each buffer
+        self.SAMPLE_WIDTH = sample_width  # size of each sample
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            self.stream.close()
+        finally:
+            self.stream = None
+
+    class MicrophoneStream(object):
+        def __init__(self):
+            self.stream = AudioFifo()
+            self.event = Event()
+
+        def write(self, frame: AudioFrame):
+            assert type(frame) is AudioFrame, 'Tried to write something that is not AudioFrame'
+            self.stream.write(frame=frame)
+            self.event.set()
+
+        def read(self, size) -> bytes:
+            frames: AudioFrame = self.stream.read(size)
+
+            # while no frame, wait until some is written using an event
+            while frames is None:
+                self.event.wait()
+                self.event.clear()
+                frames = self.stream.read(size)
+
+            # convert the frame to bytes
+            data: np.ndarray = frames.to_ndarray()
+            return data.tobytes()
+
+class AudioTransformTrack(MediaStreamTrack):
+    kind = 'audio'
+
+    def __init__(self, track):
+        super().__init__()
+        self.track = track
+        rate = 16_000  # Whisper has a sample rate of 16000
+        audio_format = 's16p'
+        sample_width = AudioFormat(audio_format).bytes
+        self.resampler = AudioResampler(format=audio_format, layout='mono', rate=rate)
+        self.source = WebRTCAudioSource(sample_rate=rate, sample_width=sample_width)
+
+    async def recv(self):
+        out_frame: AudioFrame = await self.track.recv()
+        out_frames = self.resampler.resample(out_frame)
+
+        for frame in out_frames:
+            self.source.stream.write(frame)
+
+        return out_frame
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -70,6 +144,72 @@ async def logout(request):
 
     return web.Response(status=200)
 
+def process_user_speech_thread(source: sr.AudioSource, model_name="small", record_timeout=4, phrase_timeout=3, energy_threshold=100):
+    logger.info("Starting speech recognition thread!")
+
+    audio_model = whisper.load_model(model_name + ".en")
+    data_queue = Queue()
+    phrase_time = None
+
+    transcription = ['']
+
+    recognizer = sr.Recognizer()
+    recognizer.energy_threshold = energy_threshold
+    recognizer.dynamic_energy_threshold = False
+
+    recognizer.adjust_for_ambient_noise(source)
+
+    def record_callback(_, audio:sr.AudioData) -> None:
+        # Grab the raw bytes and push it into the thread safe queue.
+        data = audio.get_raw_data()
+        data_queue.put(data)
+
+    recognizer.listen_in_background(source, record_callback, phrase_time_limit=record_timeout)
+
+    while True:
+        print("hello")
+        now = datetime.utcnow()
+        start = time.time()
+        # Pull raw recorded audio from the queue.
+        if not data_queue.empty():
+            phrase_complete = False
+            # If enough time has passed between recordings, consider the phrase complete.
+            # Clear the current working audio buffer to start over with the new data.
+            if phrase_time and now - phrase_time > timedelta(seconds=phrase_timeout):
+                phrase_complete = False
+            # If enough time has passed between recordings, consider the phrase complete.
+            # Clear the current working audio buffer to start over with the new data.
+            if phrase_time and now - phrase_time > timedelta(seconds=phrase_timeout):
+                phrase_complete = True
+            # This is the last time we received new audio data from the queue.
+            phrase_time = now
+
+            # Combine audio data from queue
+            audio_data = b''.join(data_queue.queue)
+            data_queue.queue.clear()
+
+            # Convert in-ram buffer to something the model can use directly without needing a temp file.
+            # Convert data from 16 bit wide integers to floating point with a width of 32 bits.
+            # Clamp the audio stream frequency to a PCM wavelength compatible default of 32768hz max.
+            audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
+
+            # Read the transcription.
+            result = audio_model.transcribe(audio_np, fp16=torch.cuda.is_available())
+            text = result['text'].strip()
+
+            # If we detected a pause between recordings, add a new item to our transcription.
+            # Otherwise edit the existing one.
+            if phrase_complete:
+                transcription.append(text)
+            else:
+                transcription[-1] = text
+
+            line = transcription[-1].lower()
+            if len(line) > 0 :
+                print('\n===\nUser question:\n', line, '\n===\n')
+
+        time.sleep(0.1)
+
 # POST /post_offer/{id}
 async def post_offer(request):
     client_id = int(request.match_info["id"])
@@ -91,9 +231,18 @@ async def post_offer(request):
     @pc.on("track")
     async def on_track(track):
         if track.kind == "video":
-            logger.info("Receiving video from client")
+            logger.info("Receiving video from client (we dont send video so we should never get here...)")
         elif track.kind == "audio":
             logger.info("Receiving audio from client!")
+
+            audio_relay = MediaRelay()
+            audio_track = audio_relay.subscribe(track)
+            if audio_track:
+                t = AudioTransformTrack(audio_track)
+                pc.addTrack(t)
+
+                thread = Thread(target=process_user_speech_thread, daemon=True, args=(t.source,))
+                thread.start()
 
     logger.info("User %s posted SDP offer", client_id)
 
@@ -191,6 +340,8 @@ async def get_answers(request):
 
 # POST /post_image/{id}
 async def post_image(request):
+    global image_deque
+
     client_id = request.match_info["id"]
     try:
         data = await request.json()
@@ -204,17 +355,15 @@ async def post_image(request):
 
         if len(camera_to_world) == 16:
             cam_mat = [camera_to_world[i:i+4] for i in range(0, 16, 4)]
-            logger.info("Camera-to-world matrix:\n%s", cam_mat)
 
         if len(projection_matrix) == 16:
             proj_mat = [projection_matrix[i:i+4] for i in range(0, 16, 4)]
-            logger.info("Projection matrix:\n%s", proj_mat)
 
         # Decode base64 string
         image_bytes = base64.b64decode(base64_str)
         image = Image.open(BytesIO(image_bytes))
 
-        image_queue.put((client_id, image, timestamp))
+        image_deque.append((client_id, image, cam_mat, proj_mat, timestamp))
 
         logger.info("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
@@ -233,6 +382,12 @@ async def get_answers_for_id(request):
 async def root_redirect(request):
     raise web.HTTPFound("/client/index.html")
 
+# GET /llm_response
+async def get_llm_response(request):
+    global llm_reply
+    logger.info("LLM reply: %s", llm_reply)
+    return web.Response(text=llm_reply, content_type="text/plain")
+
 # Clean shutdown
 async def on_shutdown(app):
     logger.info("Shutting down...")
@@ -244,19 +399,29 @@ async def on_shutdown(app):
     recorders.clear()
 
 def handle_images():
+    global image_deque, llm_reply
+
     while True:
-        client_id, img, timestamp = image_queue.get()
-        if img is None:
+        try:
+            if len(image_deque) == 0:
+                time.sleep(0.1)
+                continue
+
+            client_id, img, cam_mat, proj_mat, timestamp = image_deque[-1]
+            image_deque.clear()
+            if img is None:
+                break
+
+            img = np.array(img)
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
+
+            # save image to disk
+            img_path = os.path.join("images", f"image_c{client_id}_{timestamp}.png")
+            cv2.imwrite(img_path, img)
+        except Exception as e:
+            logger.error("Video processing stopped: %s", e)
             break
-
-        # lower exposure
-        img = np.array(img)
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-
-        # save image to disk
-        img_path = os.path.join("./images", f"image_c{client_id}_{timestamp}.png")
-        cv2.imwrite(img_path, img)
-        logger.info("Saved image to %s", img_path)
 
     cv2.destroyAllWindows()
 
@@ -280,6 +445,7 @@ def run_server(args):
     app.router.add_get("/offers", get_offers)
     app.router.add_get("/answers", get_answers)
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
+    app.router.add_get("/llm_response", get_llm_response)
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
 
@@ -295,7 +461,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Start the thread
-    display_thread = threading.Thread(target=handle_images, daemon=True)
+    display_thread = Thread(target=handle_images, daemon=True)
     display_thread.start()
 
     run_server(args)

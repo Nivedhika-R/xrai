@@ -14,7 +14,7 @@ using UnityEngine;
 /// </summary>
 public class WebRTCController : Singleton<WebRTCController>
 {
-    [SerializeField] public bool sendVideo = true;
+    [SerializeField] public bool sendVideo = false;
 
     [SerializeField] public bool sendAudio = true;
 

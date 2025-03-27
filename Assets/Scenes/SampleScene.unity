@@ -1022,7 +1022,7 @@ PrefabInstance:
     - target: {fileID: 6930810734943986774, guid: cca6164bb2744884a92a100266f5f3aa,
         type: 3}
       propertyPath: m_text
-      value: blah blah blah
+      value: Hello, I am here to help!
       objectReference: {fileID: 0}
     - target: {fileID: 6930810734943986775, guid: cca6164bb2744884a92a100266f5f3aa,
         type: 3}
@@ -1371,6 +1371,7 @@ MonoBehaviour:
   ipAddress: 192.168.9.250
   port: 8000
   noSSL: 0
+  llmAreaText: {fileID: 1414818710}
 --- !u!1 &896488111
 GameObject:
   m_ObjectHideFlags: 0
@@ -1385,12 +1386,12 @@ GameObject:
   - component: {fileID: 896488113}
   - component: {fileID: 896488116}
   m_Layer: 0
-  m_Name: UI Controller
+  m_Name: WebRTC Preview
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &896488112
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1982,7 +1983,7 @@ PrefabInstance:
     - target: {fileID: 8411242614738863295, guid: 86f9e534ed1ce2a4f821aa43899ffe71,
         type: 3}
       propertyPath: near clip plane
-      value: 0.25
+      value: 0.37
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2239,6 +2240,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1343308655}
   m_CullTransparentMesh: 1
+--- !u!114 &1414818710 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 6930810734943986774, guid: cca6164bb2744884a92a100266f5f3aa,
+    type: 3}
+  m_PrefabInstance: {fileID: 747681993}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1422195568
 GameObject:
   m_ObjectHideFlags: 0
