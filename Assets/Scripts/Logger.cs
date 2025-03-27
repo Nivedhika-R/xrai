@@ -92,6 +92,7 @@ public class Logger : Singleton<Logger>
         if (!enableDebug) return;
 
         ClearLinesIfNeeded();
+
         string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
         debugAreaText.text += $"{type}: {timestamp} {message}\n";
     }
@@ -101,6 +102,8 @@ public class Logger : Singleton<Logger>
         if (debugAreaText.text.Split('\n').Length >= maxLines)
         {
             debugAreaText.text = string.Empty;
+            debugLogs.Clear();
+            debugTimestamps.Clear();
         }
     }
 }

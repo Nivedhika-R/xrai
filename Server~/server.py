@@ -1,16 +1,301 @@
-from aiohttp import web
 import ssl
+import os
+import time
+import asyncio
+import base64
+import threading
+import queue
+import logging
+import argparse
 
-# openssl req -new -x509 -keyout server.pem -out server.pem -days 365 -nodes
+import cv2
+from PIL import Image
+from io import BytesIO
 
-async def login_post(request):
-    return web.Response(text="", status=200)
+import numpy as np
 
-app = web.Application()
-app.router.add_post('/login', login_post)
+from collections import defaultdict
+from aiohttp import web
+from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
+from av import VideoFrame
 
-ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-ssl_context.load_cert_chain('server.pem')
+# configure logging
+formatter = logging.Formatter('[%(asctime)s] [%(levelname).1s] %(message)s', datefmt='%H:%M:%S')
+handler = logging.StreamHandler()
+handler.setFormatter(formatter)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
 
-web.run_app(app, port=8000, ssl_context=ssl_context)
+server_id = 0
+next_client_id = 1
+created_offers = {}
+created_answers = {}
+pcs = {}  # client_id: RTCPeerConnection
+recorders = {}  # client_id: MediaRecorder
+ices = defaultdict(list)
 
+image_queue = queue.Queue()
+
+@web.middleware
+async def cors_middleware(request, handler):
+    if request.method == "OPTIONS":
+        return web.Response(status=200)
+    response = await handler(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+# POST /login
+async def login(request):
+    global next_client_id
+    client_id = next_client_id
+    next_client_id += 1
+    logger.info("User %s logged in from %s", client_id, request.remote)
+    return web.Response(text=str(client_id))
+
+# POST /logout/{id}
+async def logout(request):
+    client_id = int(request.match_info["id"])
+    logger.info("User %s logged out", client_id)
+
+    if client_id in pcs:
+        await pcs[client_id].close()
+        del pcs[client_id]
+    if client_id in recorders:
+        await recorders[client_id].stop()
+        del recorders[client_id]
+    ices.pop(client_id, None)
+
+    return web.Response(status=200)
+
+# POST /post_offer/{id}
+async def post_offer(request):
+    client_id = int(request.match_info["id"])
+    params = await request.json()
+
+    offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+
+    # Store reference to the offer (for other peers to discover)
+    created_offers[client_id] = {
+        "id": client_id,
+        "has_audio": "audio" in params.get("sdp", ""),
+        "has_video": "video" in params.get("sdp", ""),
+    }
+
+    # Create peer connection
+    pc = RTCPeerConnection()
+    pcs[client_id] = pc
+
+    @pc.on("track")
+    async def on_track(track):
+        if track.kind == "video":
+            logger.info("Receiving video from client")
+        elif track.kind == "audio":
+            logger.info("Receiving audio from client!")
+
+    logger.info("User %s posted SDP offer", client_id)
+
+    await pc.setRemoteDescription(offer)
+    answer = await pc.createAnswer()
+    await pc.setLocalDescription(answer)
+
+    created_answers[client_id] = {
+        "id": server_id,
+        "answer": {
+            "sdp": pc.localDescription.sdp,
+            "type": pc.localDescription.type
+        }
+    }
+
+    return web.json_response({
+        "sdp": pc.localDescription.sdp,
+        "type": pc.localDescription.type
+    })
+
+# POST /post_answer/{from_id}/{to_id}
+async def post_answer(request):
+    from_id = int(request.match_info["from_id"])
+    to_id = int(request.match_info["to_id"])
+
+    try:
+        data = await request.json()
+        logger.info("User %s posted answer to user %s", from_id, to_id)
+
+        created_offers.pop(to_id, None)
+
+        # Store answer in the exact format Unity expects
+        created_answers[to_id] = {
+            "id": from_id,
+            "answer": {
+                "sdp": data["sdp"],
+                "type": data["type"]
+            }
+        }
+
+        return web.Response(status=200)
+
+    except Exception as e:
+        logger.warning("Failed to save answer from %s to %s: %s", from_id, to_id, e)
+        return web.Response(status=400)
+
+# POST /post_ice/{id}
+async def post_ice(request):
+    client_id = int(request.match_info["id"])
+    if client_id not in pcs:
+        return web.Response(status=404)
+
+    try:
+        data = await request.json()
+        ip = data['candidate'].split(' ')[4]
+        port = data['candidate'].split(' ')[5]
+        protocol = data['candidate'].split(' ')[7]
+        priority = data['candidate'].split(' ')[3]
+        foundation = data['candidate'].split(' ')[0]
+        component = data['candidate'].split(' ')[1]
+        type = data['candidate'].split(' ')[7]
+
+        rtc_candidate = RTCIceCandidate(
+            ip=ip,
+            port=port,
+            protocol=protocol,
+            priority=priority,
+            foundation=foundation,
+            component=component,
+            type=type,
+            sdpMid=data["sdpMid"],
+            sdpMLineIndex=int(data["sdpMLineIndex"])
+        )
+        await pcs[client_id].addIceCandidate(rtc_candidate)
+        logger.info("Added ICE candidate for user %s", client_id)
+    except Exception as e:
+        logger.warning("Failed to add ICE for %s: %s", client_id, e)
+
+    return web.Response(status=200)
+
+# POST /consume_ices/{id}
+async def consume_ices(request):
+    client_id = int(request.match_info["id"])
+    ice_list = ices[client_id]
+    ices[client_id] = []
+    if ice_list:
+        logger.info("Someone consumed ICEs from user %s", client_id)
+    return web.json_response({"ices": ice_list})
+
+async def get_offers(request):
+    return web.json_response(created_offers)
+
+async def get_answers(request):
+    return web.json_response(created_answers)
+
+# POST /post_image/{id}
+async def post_image(request):
+    client_id = request.match_info["id"]
+    try:
+        data = await request.json()
+        base64_str = data.get("image")
+        if not base64_str:
+            return web.Response(status=400, text="Missing image data")
+
+        timestamp = data.get("timestamp", -1)
+        camera_to_world = data.get("cameraToWorldMatrix", [])
+        projection_matrix = data.get("projectionMatrix", [])
+
+        if len(camera_to_world) == 16:
+            cam_mat = [camera_to_world[i:i+4] for i in range(0, 16, 4)]
+            logger.info("Camera-to-world matrix:\n%s", cam_mat)
+
+        if len(projection_matrix) == 16:
+            proj_mat = [projection_matrix[i:i+4] for i in range(0, 16, 4)]
+            logger.info("Projection matrix:\n%s", proj_mat)
+
+        # Decode base64 string
+        image_bytes = base64.b64decode(base64_str)
+        image = Image.open(BytesIO(image_bytes))
+
+        image_queue.put((client_id, image, timestamp))
+
+        logger.info("Received image from client %s", client_id)
+        return web.Response(status=200, text="Image received successfully")
+
+    except Exception as e:
+        logger.error("Error receiving image from client %s: %s", client_id, e)
+        return web.Response(status=500, text="Failed to process image")
+
+# GET /answer/{id}
+async def get_answers_for_id(request):
+    client_id = int(request.match_info["id"])
+    answer = created_answers.get(client_id, {})
+    return web.json_response(answer)
+
+# GET /
+async def root_redirect(request):
+    raise web.HTTPFound("/client/index.html")
+
+# Clean shutdown
+async def on_shutdown(app):
+    logger.info("Shutting down...")
+    for pc in pcs.values():
+        await pc.close()
+    for recorder in recorders.values():
+        await recorder.stop()
+    pcs.clear()
+    recorders.clear()
+
+def handle_images():
+    while True:
+        client_id, img, timestamp = image_queue.get()
+        if img is None:
+            break
+
+        # lower exposure
+        img = np.array(img)
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+        # save image to disk
+        img_path = os.path.join("./images", f"image_c{client_id}_{timestamp}.png")
+        cv2.imwrite(img_path, img)
+        logger.info("Saved image to %s", img_path)
+
+    cv2.destroyAllWindows()
+
+def run_server(args):
+    # SSL Setup
+    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_context.load_cert_chain(args.pem)
+
+    os.makedirs("images", exist_ok=True)
+
+    app = web.Application(middlewares=[cors_middleware], client_max_size=10*1024**2)
+
+    # Routes
+    app.router.add_post("/login", login)
+    app.router.add_post(r"/logout/{id:\d+}", logout)
+    app.router.add_post(r"/post_offer/{id:\d+}", post_offer)
+    app.router.add_post(r"/post_answer/{from_id:\d+}/{to_id:\d+}", post_answer)
+    app.router.add_post(r"/post_ice/{id:\d+}", post_ice)
+    app.router.add_post(r"/post_image/{id:\d+}", post_image)
+    app.router.add_post(r"/consume_ices/{id:\d+}", consume_ices)
+    app.router.add_get("/offers", get_offers)
+    app.router.add_get("/answers", get_answers)
+    app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
+    app.router.add_get("/", root_redirect)
+    app.on_shutdown.append(on_shutdown)
+
+    web.run_app(app, host=args.ip, port=args.port, ssl_context=ssl_context if not args.no_ssl else None)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="XaiR Server.")
+    parser.add_argument('--ip', default='127.0.0.1', help='IP address to bind to')
+    parser.add_argument('--port', type=int, default=8000, help='Port to bind to')
+    parser.add_argument('--no-ssl', action='store_true', help='Disable SSL')
+    parser.add_argument('--pem', default='server.pem', help='Path to SSL certificate')
+
+    args = parser.parse_args()
+
+    # Start the thread
+    display_thread = threading.Thread(target=handle_images, daemon=True)
+    display_thread.start()
+
+    run_server(args)

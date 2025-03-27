@@ -5,6 +5,8 @@
 using MagicLeap;
 using SimpleJson;
 using System;
+using System.Text;
+using System.Collections;
 using System.Collections.Generic;
 using Unity.WebRTC;
 using UnityEngine;
@@ -12,6 +14,15 @@ using UnityEngine.Networking;
 
 public class ServerCommunication : MonoBehaviour
 {
+    [System.Serializable]
+    private class ImageData
+    {
+        public long timestamp;
+        public float[] cameraToWorldMatrix;
+        public float[] projectionMatrix;
+        public string image;
+    }
+
     // Action to notify when login to the server is complete
     public Action<bool> OnLoginAnswer;
 
@@ -35,6 +46,17 @@ public class ServerCommunication : MonoBehaviour
     private string _serverUri = "";
     private string _localId = ""; // Local ID given by the server
     private string _remoteId = ""; // Remote participant ID
+
+    private float[] MatrixToFloatArray(Matrix4x4 matrix)
+    {
+        return new float[]
+        {
+            matrix.m00, matrix.m01, matrix.m02, matrix.m03,
+            matrix.m10, matrix.m11, matrix.m12, matrix.m13,
+            matrix.m20, matrix.m21, matrix.m22, matrix.m23,
+            matrix.m30, matrix.m31, matrix.m32, matrix.m33
+        };
+    }
 
     /// <summary>
     /// Log in to the server.
@@ -276,6 +298,50 @@ public class ServerCommunication : MonoBehaviour
                 OnNewRemoteICECandidate?.Invoke((string)jsonObj["candidate"], (string)jsonObj["sdpMid"], Convert.ToInt32(jsonObj["sdpMLineIndex"]));
             }
         });
+    }
+
+    public void SendImage(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 projectionMatrix)
+    {
+        StartCoroutine(SendImageCoroutine(image, cameraToWorldMatrix, projectionMatrix));
+    }
+
+    private IEnumerator SendImageCoroutine(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 projectionMatrix)
+    {
+        string base64Image = System.Convert.ToBase64String(image);
+
+        // Convert matrices to float arrays
+        float[] camToWorldArray = MatrixToFloatArray(cameraToWorldMatrix);
+        float[] projArray = MatrixToFloatArray(projectionMatrix);
+
+        System.DateTime epochStart = new System.DateTime(1970, 1, 1, 0, 0, 0, System.DateTimeKind.Utc);
+        long currTime = (long)(System.DateTime.UtcNow - epochStart).TotalMilliseconds;
+        var imageData = new ImageData
+        {
+            timestamp = currTime,
+            image = base64Image,
+            cameraToWorldMatrix = camToWorldArray,
+            projectionMatrix = projArray
+        };
+
+        string jsonPayload = JsonUtility.ToJson(imageData);
+        byte[] postData = Encoding.UTF8.GetBytes(jsonPayload);
+
+        using (UnityWebRequest request = new UnityWebRequest(_serverUri + "/post_image/" + _localId, "POST"))
+        {
+            request.uploadHandler = new UploadHandlerRaw(postData);
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+
+            request.certificateHandler = new AcceptAnyCertificate();
+            request.disposeCertificateHandlerOnDispose = true;
+
+            yield return request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogError("Error sending image: " + request.error);
+            }
+        }
     }
 
     /// <summary>

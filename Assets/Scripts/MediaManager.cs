@@ -10,8 +10,7 @@ public class MediaManager : Singleton<MediaManager>
 {
     [Header("Remote Media")]
     [SerializeField] private RawImage _remoteVideoRenderer;
-    [SerializeField]
-    public AudioSource  _receiveAudio;
+    [SerializeField] public AudioSource  _receiveAudio;
 
     [Header("Local Media")]
 
@@ -42,8 +41,6 @@ public class MediaManager : Singleton<MediaManager>
     public AudioSource SourceAudio => _microphoneManager.SourceAudio;
 
     public AudioSource ReceiveAudio => _receiveAudio;
-
-
 
     private IEnumerator Start()
     {
@@ -99,5 +96,40 @@ public class MediaManager : Singleton<MediaManager>
         }
 
         return res;
+    }
+
+    public byte[] ReadRenderTextureBytes(RenderTexture renderTexture, bool png = false)
+    {
+        // Set active RenderTexture
+        RenderTexture currentRT = RenderTexture.active;
+        RenderTexture.active = renderTexture;
+
+        // Create a new Texture2D with same dimensions
+        Texture2D tex = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
+
+        // Read pixels from the RenderTexture
+        tex.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+        tex.Apply();
+
+        // Encode texture to PNG (you can also use EncodeToJPG or GetRawTextureData)
+        byte[] bytes;
+        if (png)
+            bytes = tex.EncodeToPNG();
+        else
+            bytes = tex.EncodeToJPG(85);
+
+        // Clean up
+        RenderTexture.active = currentRT;
+        GameObject.Destroy(tex); // if you're in a coroutine or function outside of OnDestroy
+
+        return bytes;
+    }
+
+    public byte[] GetImage(out Matrix4x4 cameraToWorldMatrix, out Matrix4x4 projectionMatrix, bool png = false)
+    {
+        byte[] imageBytes = ReadRenderTextureBytes(_targetCameraDeviceManager.CameraTexture, png);
+        cameraToWorldMatrix = _targetCameraDeviceManager.CameraToWorldMatrix;
+        projectionMatrix = _targetCameraDeviceManager.ProjectionMatrix;
+        return imageBytes;
     }
 }

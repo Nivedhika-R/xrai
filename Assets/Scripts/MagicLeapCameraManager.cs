@@ -32,6 +32,9 @@ public class MagicLeapCameraManager : MonoBehaviour, ICameraDeviceManager
     private bool _updatingTexture = false; // Flag to indicate if the texture update is in progress
     private Material _strideAdjustmentMaterial; // Material to apply the stride adjustment shader
 
+    private Matrix4x4 _intrinsics;
+    private Matrix4x4 _cameraToWorldMatrix;
+
     #region Capture Config
     private int _targetImageWidth = 1280; // Target width for the captured image
     private int _targetImageHeight = 720; // Target height for the captured image
@@ -52,6 +55,8 @@ public class MagicLeapCameraManager : MonoBehaviour, ICameraDeviceManager
     private static readonly int EffectiveWidthNormalizedProperty = Shader.PropertyToID("_EffectiveWidthNormalized"); // Shader property ID for effective width normalization
 
     public RenderTexture CameraTexture => _readTexture; // Property to get the current camera texture
+    public Matrix4x4 CameraToWorldMatrix => _cameraToWorldMatrix; // Property to get the current camera to world matrix
+    public Matrix4x4 ProjectionMatrix => _intrinsics; // Property to get the current camera projection matrix
 
     public bool IsConfiguredAndReady => _isCameraConfiguredAndReady; // Property to check if the camera is configured and ready
 
@@ -319,6 +324,26 @@ public class MagicLeapCameraManager : MonoBehaviour, ICameraDeviceManager
         {
             _updatingTexture = true;
             UpdateRGBTexture(frameInfo);
+
+            // update instrinsics matrix
+            _intrinsics.m00 = resultExtras.Intrinsics.Value.FocalLength[0];
+            _intrinsics.m01 = 0;
+            _intrinsics.m02 = resultExtras.Intrinsics.Value.PrincipalPoint[0];
+            _intrinsics.m03 = 0;
+            _intrinsics.m10 = 0;
+            _intrinsics.m11 = resultExtras.Intrinsics.Value.FocalLength[1];
+            _intrinsics.m12 = resultExtras.Intrinsics.Value.PrincipalPoint[1];
+            _intrinsics.m13 = 0;
+            _intrinsics.m20 = 0;
+            _intrinsics.m21 = 0;
+            _intrinsics.m22 = 1;
+            _intrinsics.m23 = 0;
+            _intrinsics.m30 = 0;
+            _intrinsics.m31 = 0;
+            _intrinsics.m32 = 0;
+            _intrinsics.m33 = 1;
+
+            MLCVCamera.GetFramePose(resultExtras.VCamTimestamp, out _cameraToWorldMatrix);
         }
     }
 

@@ -8,12 +8,24 @@ using UnityEngine;
 
 public class XAIRClient : Singleton<XAIRClient>
 {
-    [SerializeField] private string ipAddress = "http://0.0.0.0:8080";
+    [SerializeField] private ServerCommunication _serverCommunication;
+    [SerializeField] private MediaManager _mediaManager;
+
+    [SerializeField] private string ipAddress = "0.0.0.0";
+    [SerializeField] private string port = "8000";
+    [SerializeField] private bool noSSL = false;
+
+    private string serverAdress;
 
     public Action<bool, string> OnWebRTCConnectionChanged;
 
+
+    private float _timer = 0.0f;
+    private float _sendImageFreqHz = 5.0f;
+
     void Start() {
-        Debug.Log("XAIRClient starting at " + ipAddress);
+        serverAdress = noSSL ? "http://" + ipAddress + ":" + port : "https://" + ipAddress + ":" + port;
+        Debug.Log("XAIRClient starting at " + serverAdress);
 
         WebRTCController.Instance.OnWebRTCConnectionStateChange += OnWebRTCConnectionStateChanged;
 
@@ -21,10 +33,35 @@ public class XAIRClient : Singleton<XAIRClient>
         StartCoroutine(Connect());
     }
 
+    // every 1 second send image to server
+    void Update()
+    {
+        if (_serverCommunication != null)
+        {
+            _timer += Time.deltaTime;
+            if (_timer >= 1.0f / _sendImageFreqHz)
+            {
+                _timer = 0.0f;
+
+                Matrix4x4 cameraToWorldMatrix, projectionMatrix;
+                byte[] imageBytes = _mediaManager.GetImage(out cameraToWorldMatrix, out projectionMatrix);
+                if (imageBytes != null)
+                {
+                    _serverCommunication.SendImage(imageBytes, cameraToWorldMatrix, projectionMatrix);
+                }
+            }
+        }
+    }
+
     private IEnumerator Connect()
     {
-        yield return new WaitForSeconds(1);
-        OnWebRTCConnectionChanged?.Invoke(true, ipAddress);
+        // wait until media is ready
+        while (!MediaManager.Instance.IsMediaReady())
+        {
+            yield return new WaitForSeconds(1);
+        }
+
+        OnWebRTCConnectionChanged?.Invoke(true, serverAdress);
     }
 
     private void OnWebRTCConnectionStateChanged(WebRTCController.WebRTCConnectionState connectionState)

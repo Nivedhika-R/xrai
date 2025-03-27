@@ -358,6 +358,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1c5cdfa6cd35441228897d11f25edea0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  sendVideo: 0
+  sendAudio: 1
   _serverCommunication: {fileID: 404426534}
 --- !u!1 &421178914
 GameObject:
@@ -1364,7 +1366,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a872189ff743944f68812b05ac47ede0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ipAddress: https://0.0.0.0:8000
+  _serverCommunication: {fileID: 404426534}
+  _mediaManager: {fileID: 899961967}
+  ipAddress: 192.168.9.250
+  port: 8000
+  noSSL: 0
 --- !u!1 &896488111
 GameObject:
   m_ObjectHideFlags: 0
@@ -1871,7 +1877,7 @@ Transform:
   m_GameObject: {fileID: 1062607235}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.09548479, y: 0.1759391, z: -1.332284}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:

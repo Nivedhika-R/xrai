@@ -14,6 +14,10 @@ using UnityEngine;
 /// </summary>
 public class WebRTCController : Singleton<WebRTCController>
 {
+    [SerializeField] public bool sendVideo = true;
+
+    [SerializeField] public bool sendAudio = true;
+
     private RTCIceServer[] _iceServers = null;
     private RTCPeerConnection _peerConnection;
     private bool _waitingForAnswer = false;
@@ -639,8 +643,8 @@ public class WebRTCController : Singleton<WebRTCController>
         Debug.Log("Adding tracks to media stream...");
         if (_peerConnection != null)
         {
-            AddVideoTrackToMediaStream();
-            AddAudioTrackToMediaStream();
+            if (sendVideo) AddVideoTrackToMediaStream();
+            if (sendAudio) AddAudioTrackToMediaStream();
         }
     }
 
