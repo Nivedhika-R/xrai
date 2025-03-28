@@ -14,6 +14,8 @@ using UnityEngine;
 /// </summary>
 public class WebRTCController : Singleton<WebRTCController>
 {
+    const string DATA_CHANNEL_NAME = "xairDataChannel";
+
     [SerializeField] public bool sendVideo = false;
 
     [SerializeField] public bool sendAudio = true;
@@ -36,6 +38,10 @@ public class WebRTCController : Singleton<WebRTCController>
     private AudioStreamTrack _audioStreamTrack;
     private VideoStreamTrack _videoStreamTrack;
     private MediaStream _sendStream = null;
+
+    private RTCDataChannel _dataChannel;
+    public Action<string> OnDataChannelMessageReceived;
+
     private WebRTCConnectionState controllerState = WebRTCConnectionState.NotConnected;
 
     /// <summary>
@@ -402,6 +408,13 @@ public class WebRTCController : Singleton<WebRTCController>
             return;
         }
 
+        if (_dataChannel != null)
+        {
+            _dataChannel.Close();
+            _dataChannel.Dispose();
+            _dataChannel = null;
+        }
+
         Debug.Log("Disconnecting WebRTC...");
         _serverCommunication.Disconnect();
         RemoveTracks();
@@ -473,6 +486,9 @@ public class WebRTCController : Singleton<WebRTCController>
             _peerConnection = CreatePeerConnection(_iceServers);
             SubscribeToConnection(_peerConnection);
 
+            _dataChannel = _peerConnection.CreateDataChannel(DATA_CHANNEL_NAME);
+            RegisterDataChannelEvents(_dataChannel);
+
             AddTracksToMediaStream();
             StartCoroutine(WebRTC.Update());
 
@@ -543,6 +559,48 @@ public class WebRTCController : Singleton<WebRTCController>
         connection.OnIceCandidate = OnIceCandidate;
         connection.OnIceConnectionChange = OnIceConnectionChange;
         connection.OnIceGatheringStateChange = OnIceGatheringStateChange;
+        connection.OnDataChannel = channel =>
+        {
+            _dataChannel = channel;
+            RegisterDataChannelEvents(_dataChannel);
+        };
+    }
+
+    private void RegisterDataChannelEvents(RTCDataChannel channel)
+    {
+        channel.OnMessage = bytes =>
+        {
+            string message = System.Text.Encoding.UTF8.GetString(bytes);
+            OnDataChannelMessageReceived?.Invoke(message);
+        };
+
+        channel.OnOpen = () =>
+        {
+            Debug.Log("Data channel opened.");
+        };
+
+        channel.OnClose = () =>
+        {
+            Debug.Log("Data channel closed.");
+        };
+
+        channel.OnError = e =>
+        {
+            Debug.LogError($"Data channel error: {e}");
+        };
+    }
+
+    public void SendData(string message)
+    {
+        if (_dataChannel != null && _dataChannel.ReadyState == RTCDataChannelState.Open)
+        {
+            byte[] data = System.Text.Encoding.UTF8.GetBytes(message);
+            _dataChannel.Send(data);
+        }
+        else
+        {
+            Debug.LogWarning("Data channel is not open. Cannot send message.");
+        }
     }
 
     /// <summary>

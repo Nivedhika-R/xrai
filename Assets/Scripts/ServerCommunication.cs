@@ -47,10 +47,6 @@ public class ServerCommunication : MonoBehaviour
     private string _localId = ""; // Local ID given by the server
     private string _remoteId = ""; // Remote participant ID
 
-    private string _llmResponse = "";
-
-    public string LLMResponse { get { return _llmResponse; } }
-
     private float[] MatrixToFloatArray(Matrix4x4 matrix)
     {
         return new float[]
@@ -301,14 +297,6 @@ public class ServerCommunication : MonoBehaviour
             {
                 OnNewRemoteICECandidate?.Invoke((string)jsonObj["candidate"], (string)jsonObj["sdpMid"], Convert.ToInt32(jsonObj["sdpMLineIndex"]));
             }
-        });
-    }
-
-    public void UpdateLLMResponse() {
-        _webRequestManager.HttpGet(_serverUri + "/llm_response", (AsyncOperation asyncOp) =>
-        {
-            UnityWebRequestAsyncOperation webRequestAsyncOp = asyncOp as UnityWebRequestAsyncOperation;
-            _llmResponse = webRequestAsyncOp.webRequest.downloadHandler.text;
         });
     }
 

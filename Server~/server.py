@@ -1,144 +1,42 @@
 import ssl
-import os
 import time
+import json
 import asyncio
 import base64
+import argparse
+
 from threading import Thread
 from queue import Queue
 from collections import deque
-import logging
-import argparse
-import soundfile as sf
-from datetime import datetime, timedelta, timezone
 
 import cv2
 from PIL import Image
 from io import BytesIO
-import whisper
-import torch
 
 import numpy as np
 
 from collections import defaultdict
 from aiohttp import web
-from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
-from av import AudioResampler
+from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 
 from constants import *
+from logger import logger
 from chatgpt_helper import ChatGPTHelper
-
-# configure logging
-formatter = logging.Formatter('[%(asctime)s] [%(levelname).1s] %(message)s', datefmt='%H:%M:%S')
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
-logger.addHandler(handler)
+from whisper_helper import RemoteAudioToWhisper
 
 server_id = 0
 next_client_id = 1
+consume_tasks = {}
 created_offers = {}
 created_answers = {}
 pcs = {}  # client_id: RTCPeerConnection
 recorders = {}  # client_id: MediaRecorder
 ices = defaultdict(list)
 
+msg_queue = Queue()
 image_deque = deque()
 
 chatgpt = ChatGPTHelper()
-llm_reply = ""
-
-class WhisperProcessor:
-    def __init__(self, model_name="medium", record_timeout=5, phrase_timeout=3):
-        self.audio_model = whisper.load_model(model_name + ".en")
-        self.data_queue = Queue()
-        self.transcription = [""]
-        self.phrase_time = None
-        self.record_timeout = record_timeout
-        self.phrase_timeout = phrase_timeout
-
-    def feed_audio(self, pcm_bytes: bytes):
-        self.data_queue.put(pcm_bytes)
-
-    def run(self):
-        while True:
-            now = datetime.now(timezone.utc)
-
-            if not self.data_queue.empty():
-                phrase_complete = False
-
-                if self.phrase_time and now - self.phrase_time > timedelta(seconds=self.phrase_timeout):
-                    phrase_complete = True
-
-                self.phrase_time = now
-
-                # Combine all audio in the queue
-                audio_data = b''.join(self.data_queue.queue)
-                self.data_queue.queue.clear()
-
-                # Convert to float32 PCM [-1.0, 1.0]
-                audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
-
-                # Transcribe with Whisper
-                result = self.audio_model.transcribe(audio_np, fp16=torch.cuda.is_available(), language="en")
-                text = result['text'].strip()
-
-                if phrase_complete:
-                    self.transcription.append(text)
-                else:
-                    self.transcription[-1] = text
-
-                if text:
-                    logger.info(f"\nUser said:\n{text}\n")
-
-            time.sleep(0.1)
-
-class RemoteAudioToWhisper(MediaStreamTrack):
-    kind = "audio"
-
-    def __init__(self, track):
-        super().__init__()
-        self.track = track
-        self.buffer = bytearray()
-
-        self.whisper_processor = WhisperProcessor()
-        self.whisper_thread = Thread(target=self.whisper_processor.run, daemon=True)
-        self.whisper_thread.start()
-
-        self.sample_rate = 16000 # Whisper has a sample rate of 16000
-        self.resampler = AudioResampler(
-            format='s16',
-            layout='mono',
-            rate=self.sample_rate
-        )
-
-        now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.debug_file = f"debug_audio_{now}.wav"
-        self.wav_writer = sf.SoundFile(
-            self.debug_file, mode='w', samplerate=self.sample_rate, channels=1, subtype='PCM_16'
-        )
-
-    async def recv(self):
-        frame = await self.track.recv()
-
-        resampled_frames = self.resampler.resample(frame)
-        if not isinstance(resampled_frames, list):
-            resampled_frames = [resampled_frames]
-
-        for resampled in resampled_frames:
-            pcm_array = resampled.to_ndarray().astype(np.int16).flatten()
-            pcm_bytes = pcm_array.tobytes()
-
-            # Write to WAV (optional for debugging)
-            # self.wav_writer.write(pcm_array)
-
-            self.whisper_processor.feed_audio(pcm_bytes)
-
-        return frame
-
-    def stop(self):
-        self.wav_writer.close()
-        super().stop()
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -179,6 +77,8 @@ async def dummy_consume(track):
 
 # POST /post_offer/{id}
 async def post_offer(request):
+    global msg_queue
+
     client_id = int(request.match_info["id"])
     params = await request.json()
 
@@ -202,7 +102,35 @@ async def post_offer(request):
         elif track.kind == "audio":
             logger.info("Receiving audio from client!")
             audio_reader = RemoteAudioToWhisper(track)
-            asyncio.ensure_future(dummy_consume(audio_reader))
+            consume_task = asyncio.create_task(dummy_consume(audio_reader))
+            consume_tasks[client_id] = consume_task
+
+    @pc.on("datachannel")
+    def on_datachannel(channel):
+        logger.info(f"DataChannel created: {channel.label}")
+        msg = {
+            "client_id": client_id,
+            "type": "greeting",
+            "content": "Hello from XaiR!"
+        }
+        payload = json.dumps(msg)
+        channel.send(payload)
+
+        async def listen_for_msgs():
+            while True:
+                msg = await asyncio.get_event_loop().run_in_executor(None, msg_queue.get)
+                payload = json.dumps(msg)
+                try:
+                    channel.send(payload)
+                except Exception as e:
+                    logger.error(f"Failed to send message via DataChannel: {e}")
+                    break
+
+        asyncio.create_task(listen_for_msgs())
+
+        @channel.on("message")
+        def on_message(message):
+            logger.info(f"Received message via DataChannel: {message}")
 
     logger.info("User %s posted SDP offer", client_id)
 
@@ -341,15 +269,11 @@ async def get_answers_for_id(request):
 async def root_redirect(request):
     raise web.HTTPFound("/client/index.html")
 
-# GET /llm_response
-async def get_llm_response(request):
-    global llm_reply
-    logger.info("LLM reply: %s", llm_reply)
-    return web.Response(text=llm_reply, content_type="text/plain")
-
 # Clean shutdown
 async def on_shutdown(app):
     logger.info("Shutting down...")
+    for task in consume_tasks.values():
+        task.cancel()
     for pc in pcs.values():
         await pc.close()
     for recorder in recorders.values():
@@ -358,7 +282,7 @@ async def on_shutdown(app):
     recorders.clear()
 
 def handle_images():
-    global image_deque, llm_reply
+    global image_deque, msg_queue
 
     while True:
         try:
@@ -367,6 +291,8 @@ def handle_images():
                 continue
 
             client_id, img, cam_mat, proj_mat, timestamp = image_deque[-1]
+            client_id = int(client_id)
+
             image_deque.clear()
             if img is None:
                 break
@@ -378,6 +304,16 @@ def handle_images():
             img = np.array(img)
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
+
+            msg = {
+                "client_id": client_id,
+                "type": "llm_reply",
+                "content": llm_reply,
+                "timestamp": timestamp,
+                "cameraToWorldMatrix": cam_mat,
+                "projectionMatrix": proj_mat
+            }
+            msg_queue.put(msg)
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break
@@ -388,8 +324,6 @@ def run_server(args):
     # SSL Setup
     ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
     ssl_context.load_cert_chain(args.pem)
-
-    os.makedirs("images", exist_ok=True)
 
     app = web.Application(middlewares=[cors_middleware], client_max_size=10*1024**2)
 
@@ -404,7 +338,6 @@ def run_server(args):
     app.router.add_get("/offers", get_offers)
     app.router.add_get("/answers", get_answers)
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
-    app.router.add_get("/llm_response", get_llm_response)
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
 
