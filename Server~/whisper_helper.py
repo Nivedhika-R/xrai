@@ -14,6 +14,9 @@ from av import AudioResampler
 
 from logger import logger
 
+import functools
+whisper.torch.load = functools.partial(whisper.torch.load, weights_only=True)
+
 logger.info("Loading Whisper model...")
 
 model_name = "medium"

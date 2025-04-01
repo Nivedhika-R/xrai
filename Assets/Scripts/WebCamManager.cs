@@ -28,7 +28,8 @@ public class WebCamManager : MonoBehaviour, ICameraDeviceManager
     /// </summary>
     public RenderTexture CameraTexture => _readTexture;
     public Matrix4x4 CameraToWorldMatrix => Matrix4x4.identity;
-    public Matrix4x4 ProjectionMatrix => Matrix4x4.identity;
+    public Matrix4x4 Instrinsics => Matrix4x4.identity;
+    public Matrix4x4 Distortion => Matrix4x4.identity;
 
     public bool IsConfiguredAndReady => _isCameraConfiguredAndReady;
 

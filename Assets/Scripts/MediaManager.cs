@@ -120,16 +120,17 @@ public class MediaManager : Singleton<MediaManager>
 
         // Clean up
         RenderTexture.active = currentRT;
-        GameObject.Destroy(tex); // if you're in a coroutine or function outside of OnDestroy
+        Destroy(tex); // if you're in a coroutine or function outside of OnDestroy
 
         return bytes;
     }
 
-    public byte[] GetImage(out Matrix4x4 cameraToWorldMatrix, out Matrix4x4 projectionMatrix, bool png = false)
+    public byte[] GetImage(out Matrix4x4 cameraToWorldMatrix, out Matrix4x4 instrinsics, out Matrix4x4 distortion, bool png = false)
     {
         byte[] imageBytes = ReadRenderTextureBytes(_targetCameraDeviceManager.CameraTexture, png);
         cameraToWorldMatrix = _targetCameraDeviceManager.CameraToWorldMatrix;
-        projectionMatrix = _targetCameraDeviceManager.ProjectionMatrix;
+        instrinsics = _targetCameraDeviceManager.Instrinsics;
+        distortion = _targetCameraDeviceManager.Distortion;
         return imageBytes;
     }
 }

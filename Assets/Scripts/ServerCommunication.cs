@@ -7,7 +7,6 @@ using SimpleJson;
 using System;
 using System.Text;
 using System.Collections;
-using System.Collections.Generic;
 using Unity.WebRTC;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -19,7 +18,8 @@ public class ServerCommunication : MonoBehaviour
     {
         public long timestamp;
         public float[] cameraToWorldMatrix;
-        public float[] projectionMatrix;
+        public float[] instrinsics;
+        public float[] distortion;
         public string image;
     }
 
@@ -241,7 +241,7 @@ public class ServerCommunication : MonoBehaviour
         JsonObject jsonObj = (JsonObject)obj;
         if (jsonObj.ContainsKey("id") && jsonObj.ContainsKey("answer"))
         {
-            remoteId = ((Int64)jsonObj["id"]).ToString();
+            remoteId = ((long)jsonObj["id"]).ToString();
             JsonObject answerObj = (JsonObject)jsonObj["answer"];
             sdp = (string)answerObj["sdp"];
             result = true;
@@ -300,47 +300,47 @@ public class ServerCommunication : MonoBehaviour
         });
     }
 
-    public void SendImage(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 projectionMatrix)
+    public void SendImage(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics, Matrix4x4 distortion)
     {
-        StartCoroutine(SendImageCoroutine(image, cameraToWorldMatrix, projectionMatrix));
+        StartCoroutine(SendImageCoroutine(image, cameraToWorldMatrix, instrinsics, distortion));
     }
 
-    private IEnumerator SendImageCoroutine(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 projectionMatrix)
+    private IEnumerator SendImageCoroutine(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics, Matrix4x4 distortion)
     {
-        string base64Image = System.Convert.ToBase64String(image);
+        string base64Image = Convert.ToBase64String(image);
 
         // Convert matrices to float arrays
         float[] camToWorldArray = MatrixToFloatArray(cameraToWorldMatrix);
-        float[] projArray = MatrixToFloatArray(projectionMatrix);
+        float[] projArray = MatrixToFloatArray(instrinsics);
+        float [] distArray = MatrixToFloatArray(distortion);
 
-        System.DateTime epochStart = new System.DateTime(1970, 1, 1, 0, 0, 0, System.DateTimeKind.Utc);
-        long currTime = (long)(System.DateTime.UtcNow - epochStart).TotalMilliseconds;
+        System.DateTime epochStart = new(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        long currTime = (long)(DateTime.UtcNow - epochStart).TotalMilliseconds;
         var imageData = new ImageData
         {
             timestamp = currTime,
             image = base64Image,
             cameraToWorldMatrix = camToWorldArray,
-            projectionMatrix = projArray
+            instrinsics = projArray,
+            distortion = distArray
         };
 
         string jsonPayload = JsonUtility.ToJson(imageData);
         byte[] postData = Encoding.UTF8.GetBytes(jsonPayload);
 
-        using (UnityWebRequest request = new UnityWebRequest(_serverUri + "/post_image/" + _localId, "POST"))
+        using UnityWebRequest request = new(_serverUri + "/post_image/" + _localId, "POST");
+        request.uploadHandler = new UploadHandlerRaw(postData);
+        request.downloadHandler = new DownloadHandlerBuffer();
+        request.SetRequestHeader("Content-Type", "application/json");
+
+        request.certificateHandler = new AcceptAnyCertificate();
+        request.disposeCertificateHandlerOnDispose = true;
+
+        yield return request.SendWebRequest();
+
+        if (request.result != UnityWebRequest.Result.Success)
         {
-            request.uploadHandler = new UploadHandlerRaw(postData);
-            request.downloadHandler = new DownloadHandlerBuffer();
-            request.SetRequestHeader("Content-Type", "application/json");
-
-            request.certificateHandler = new AcceptAnyCertificate();
-            request.disposeCertificateHandlerOnDispose = true;
-
-            yield return request.SendWebRequest();
-
-            if (request.result != UnityWebRequest.Result.Success)
-            {
-                Debug.LogError("Error sending image: " + request.error);
-            }
+            Debug.LogError("Error sending image: " + request.error);
         }
     }
 

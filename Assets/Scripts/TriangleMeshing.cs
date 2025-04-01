@@ -11,16 +11,16 @@ using MagicLeap.OpenXR.Features.Meshing;
 public class TriangleMeshing : MonoBehaviour
 {
     [SerializeField]
-    private ARMeshManager _meshManager;
+    private ARMeshManager _meshingManager;
 
     private MagicLeapMeshingFeature meshingFeature;
 
     // Search for the Mesh Manager and assign it automatically if it was not set in the inspector
     private void OnValidate()
     {
-        if (_meshManager == null)
+        if (_meshingManager == null)
         {
-            _meshManager = FindObjectOfType<ARMeshManager>();
+            _meshingManager = FindObjectOfType<ARMeshManager>();
         }
     }
 
@@ -28,7 +28,7 @@ public class TriangleMeshing : MonoBehaviour
     IEnumerator Start()
     {
         // Check if the ARMeshManager component is assigned, if not, try to find one in the scene
-        if (_meshManager == null)
+        if (_meshingManager == null)
         {
             Debug.LogError("No ARMeshManager component found. Disabling script.");
             enabled = false;
@@ -36,7 +36,7 @@ public class TriangleMeshing : MonoBehaviour
         }
 
         // Disable the mesh manager until permissions are granted
-        _meshManager.enabled = false;
+        _meshingManager.enabled = false;
 
         yield return new WaitUntil(IsMeshingSubsystemLoaded);
 
@@ -52,9 +52,50 @@ public class TriangleMeshing : MonoBehaviour
         Permissions.RequestPermission(Permissions.SpatialMapping, OnPermissionGranted, OnPermissionDenied, OnPermissionDenied);
     }
 
+    public bool RayCastToMesh(Ray ray, out Vector3 hitPoint)
+    {
+        hitPoint = Vector3.zero;
+
+        if (_meshingManager == null || !_meshingManager.enabled)
+        {
+            Debug.LogError("Mesh Manager is not enabled.");
+            return false;
+        }
+
+        foreach (var meshFilter in _meshingManager.meshes)
+        {
+            if (meshFilter == null) continue;
+
+            var meshCollider = meshFilter.GetComponent<MeshCollider>();
+            if (meshCollider == null)
+            {
+                Debug.LogWarning("MeshCollider missing on mesh.");
+                continue;
+            }
+
+            if (!meshCollider.enabled)
+            {
+                Debug.LogWarning("MeshCollider is disabled.");
+                continue;
+            }
+
+            // Ensure mesh is assigned
+            if (meshCollider.sharedMesh == null)
+                meshCollider.sharedMesh = meshFilter.sharedMesh;
+
+            if (meshCollider.Raycast(ray, out RaycastHit hit, Mathf.Infinity))
+            {
+                hitPoint = hit.point;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void OnPermissionGranted(string permission)
     {
-        _meshManager.enabled = true;
+        _meshingManager.enabled = true;
     }
 
     private void OnPermissionDenied(string permission)

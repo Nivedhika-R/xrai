@@ -11,8 +11,9 @@ public class Logger : Singleton<Logger>
     [SerializeField] private bool enableDebug = false;
     [SerializeField] private int maxLines = 20;
 
-    private Dictionary<string, string> debugLogs = new Dictionary<string, string>();
-    private Dictionary<string, string> debugTimestamps = new Dictionary<string, string>();
+    // Stores: Key = log tag, Value = (Message, Timestamp, Type)
+    private Dictionary<string, (string Value, string Timestamp, string Type)> debugLogs =
+        new Dictionary<string, (string, string, string)>();
 
     private void Start()
     {
@@ -45,12 +46,13 @@ public class Logger : Singleton<Logger>
         string key = splitString[0];
         string value = splitString.Length > 1 ? splitString[1].Trim() : "";
 
-        if (debugLogs.ContainsKey(key))
-            debugLogs[key] = value;
-        else
-            debugLogs.Add(key, value);
+        string timestamp = DateTime.Now.ToString("HH:mm:ss");
+        string typeLabel = GetLogTypeLetter(type);
 
-        debugTimestamps[key] = DateTime.Now.ToString("HH:mm:ss.fff");
+        if (debugLogs.ContainsKey(key))
+            debugLogs[key] = (value, timestamp, typeLabel);
+        else
+            debugLogs.Add(key, (value, timestamp, typeLabel));
 
         UpdateDebugDisplay();
     }
@@ -62,11 +64,15 @@ public class Logger : Singleton<Logger>
         string output = "";
         foreach (var log in debugLogs)
         {
-            string time = debugTimestamps.ContainsKey(log.Key) ? debugTimestamps[log.Key] : "--:--:--";
-            if (string.IsNullOrEmpty(log.Value))
-                output += $"{time} {log.Key}\n";
-            else
-                output += $"{time} {log.Key}: {log.Value}\n";
+            string time = log.Value.Timestamp;
+            string type = log.Value.Type;
+            string value = log.Value.Value;
+
+            string line = string.IsNullOrEmpty(value)
+                ? $"[{time}] [{type}] {log.Key}"
+                : $"[{time}] [{type}] {log.Key}: {value}";
+
+            output += line + "\n";
         }
 
         debugAreaText.text = output;
@@ -74,17 +80,17 @@ public class Logger : Singleton<Logger>
 
     public void Log(string message)
     {
-        LogInternal(message, "LOG");
+        LogInternal(message, "I");
     }
 
     public void LogWarning(string message)
     {
-        LogInternal(message, "WARN");
+        LogInternal(message, "W");
     }
 
     public void LogError(string message)
     {
-        LogInternal(message, "ERROR");
+        LogInternal(message, "E");
     }
 
     private void LogInternal(string message, string type)
@@ -93,17 +99,39 @@ public class Logger : Singleton<Logger>
 
         ClearLinesIfNeeded();
 
-        string timestamp = DateTime.Now.ToString("HH:mm:ss.fff");
-        debugAreaText.text += $"{type}: {timestamp} {message}\n";
+        string timestamp = DateTime.Now.ToString("HH:mm:ss");
+        debugAreaText.text += $"[{timestamp}] [{type}] {message}\n";
     }
 
     private void ClearLinesIfNeeded()
     {
-        if (debugAreaText.text.Split('\n').Length >= maxLines)
+        string[] lines = debugAreaText.text.Split('\n');
+        if (lines.Length >= maxLines)
         {
-            debugAreaText.text = string.Empty;
+            // Keep only error logs
+            var errorLogs = debugLogs
+                .Where(kvp => kvp.Value.Type == "E")
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
             debugLogs.Clear();
-            debugTimestamps.Clear();
+            foreach (var err in errorLogs)
+                debugLogs.Add(err.Key, err.Value);
+
+            debugAreaText.text = "";
+        }
+    }
+
+    private string GetLogTypeLetter(LogType type)
+    {
+        switch (type)
+        {
+            case LogType.Error:
+            case LogType.Exception:
+                return "E";
+            case LogType.Warning:
+                return "W";
+            default:
+                return "I";
         }
     }
 }

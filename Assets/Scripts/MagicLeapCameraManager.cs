@@ -32,11 +32,14 @@ public class MagicLeapCameraManager : MonoBehaviour, ICameraDeviceManager
     private bool _updatingTexture = false; // Flag to indicate if the texture update is in progress
     private Material _strideAdjustmentMaterial; // Material to apply the stride adjustment shader
 
-    private Matrix4x4 _intrinsics;
     private Matrix4x4 _cameraToWorldMatrix;
+    private Matrix4x4 _intrinsics;
+    private Matrix4x4 _distortion = Matrix4x4.identity; // Distortion matrix for the camera
 
     #region Capture Config
+    [SerializeField]
     private int _targetImageWidth = 1280; // Target width for the captured image
+    [SerializeField]
     private int _targetImageHeight = 720; // Target height for the captured image
     private MLCamera.Identifier _cameraIdentifier = MLCamera.Identifier.CV; // Identifier for the camera to use
     private MLCamera.CaptureFrameRate _targetFrameRate = MLCamera.CaptureFrameRate._15FPS; // Target frame rate for the camera capture
@@ -56,7 +59,8 @@ public class MagicLeapCameraManager : MonoBehaviour, ICameraDeviceManager
 
     public RenderTexture CameraTexture => _readTexture; // Property to get the current camera texture
     public Matrix4x4 CameraToWorldMatrix => _cameraToWorldMatrix; // Property to get the current camera to world matrix
-    public Matrix4x4 ProjectionMatrix => _intrinsics; // Property to get the current camera projection matrix
+    public Matrix4x4 Instrinsics => _intrinsics; // Property to get the current camera projection matrix
+    public Matrix4x4 Distortion => _distortion;
 
     public bool IsConfiguredAndReady => _isCameraConfiguredAndReady; // Property to check if the camera is configured and ready
 
@@ -342,6 +346,24 @@ public class MagicLeapCameraManager : MonoBehaviour, ICameraDeviceManager
             _intrinsics.m31 = 0;
             _intrinsics.m32 = 0;
             _intrinsics.m33 = 1;
+
+            // update distortion matrix
+            _distortion.m00 = (float)resultExtras.Intrinsics.Value.Distortion[0];
+            _distortion.m01 = (float)resultExtras.Intrinsics.Value.Distortion[1];
+            _distortion.m02 = (float)resultExtras.Intrinsics.Value.Distortion[2];
+            _distortion.m03 = (float)resultExtras.Intrinsics.Value.Distortion[3];
+            _distortion.m10 = (float)resultExtras.Intrinsics.Value.Distortion[4];
+            _distortion.m11 = 0;
+            _distortion.m12 = 0;
+            _distortion.m13 = 0;
+            _distortion.m20 = 0;
+            _distortion.m21 = 0;
+            _distortion.m22 = 0;
+            _distortion.m23 = 0;
+            _distortion.m30 = 0;
+            _distortion.m31 = 0;
+            _distortion.m32 = 0;
+            _distortion.m33 = 1;
 
             MLCVCamera.GetFramePose(resultExtras.VCamTimestamp, out _cameraToWorldMatrix);
         }

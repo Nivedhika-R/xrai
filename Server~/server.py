@@ -1,3 +1,4 @@
+import os
 import ssl
 import time
 import json
@@ -109,7 +110,7 @@ async def post_offer(request):
     def on_datachannel(channel):
         logger.info(f"DataChannel created: {channel.label}")
         msg = {
-            "client_id": client_id,
+            "clientID": client_id,
             "type": "greeting",
             "content": "Hello from XaiR!"
         }
@@ -238,19 +239,26 @@ async def post_image(request):
 
         timestamp = data.get("timestamp", -1)
         camera_to_world = data.get("cameraToWorldMatrix", [])
-        projection_matrix = data.get("projectionMatrix", [])
+        instrinsics = data.get("instrinsics", [])
+        distortion = data.get("distortion", [])
 
         if len(camera_to_world) == 16:
-            cam_mat = [camera_to_world[i:i+4] for i in range(0, 16, 4)]
+            values = list(map(float, camera_to_world))
+            cam_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
 
-        if len(projection_matrix) == 16:
-            proj_mat = [projection_matrix[i:i+4] for i in range(0, 16, 4)]
+        if len(instrinsics) == 16:
+            values = list(map(float, instrinsics))
+            proj_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+
+        if len(distortion) == 16:
+            values = list(map(float, distortion))
+            dist_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
 
         # Decode base64 string
         image_bytes = base64.b64decode(base64_str)
         image = Image.open(BytesIO(image_bytes))
 
-        image_deque.append((client_id, image, cam_mat, proj_mat, timestamp))
+        image_deque.append((client_id, image, cam_mat, proj_mat, dist_mat, timestamp))
 
         logger.info("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
@@ -290,35 +298,43 @@ def handle_images():
                 time.sleep(0.1)
                 continue
 
-            client_id, img, cam_mat, proj_mat, timestamp = image_deque[-1]
+            client_id, img, cam_mat, proj_mat, dist_mat, timestamp = image_deque[-1]
             client_id = int(client_id)
 
             image_deque.clear()
             if img is None:
                 break
 
-            # save image to disk
-            # img_path = os.path.join("images", f"image_c{client_id}_{timestamp}.png")
-            # cv2.imwrite(img_path, img)
-
             img = np.array(img)
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-            llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
+            img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
+            # save image to disk (to debug)
+            os.makedirs("images", exist_ok=True)
+            img_path = os.path.join("images", f"image_c{client_id}_{timestamp}.png")
+            cv2.imwrite(img_path, img_bgr)
+
+            # llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
+
+            object_centers = []
+            object_centers.append((img.shape[1]/2, img.shape[0]/2))
+
+            llm_reply = "hi"
             msg = {
-                "client_id": client_id,
+                "clientID": client_id,
                 "type": "llm_reply",
                 "content": llm_reply,
+                "imageWidth": img.shape[1],
+                "imageHeight": img.shape[0],
+                "objectCenters": object_centers,
                 "timestamp": timestamp,
-                "cameraToWorldMatrix": cam_mat,
-                "projectionMatrix": proj_mat
+                "extrinsics": cam_mat.flatten().tolist(),
+                "instrinsics": proj_mat.flatten().tolist(),
+                "distortion": dist_mat.flatten().tolist(),
             }
             msg_queue.put(msg)
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break
-
-    cv2.destroyAllWindows()
 
 def run_server(args):
     # SSL Setup
