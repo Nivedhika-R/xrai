@@ -163,3 +163,5 @@ $RECYCLE.BIN/
 *.vsix
 
 *.pem
+.vscode/
+.DS_Store

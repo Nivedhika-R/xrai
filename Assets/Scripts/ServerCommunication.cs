@@ -10,6 +10,7 @@ using System.Collections;
 using Unity.WebRTC;
 using UnityEngine;
 using UnityEngine.Networking;
+using System.Linq;
 
 public class ServerCommunication : MonoBehaviour
 {
@@ -19,7 +20,6 @@ public class ServerCommunication : MonoBehaviour
         public long timestamp;
         public float[] cameraToWorldMatrix;
         public float[] instrinsics;
-        public float[] distortion;
         public string image;
     }
 
@@ -293,36 +293,34 @@ public class ServerCommunication : MonoBehaviour
             JsonObject jsonObjects = (JsonObject)SimpleJson.SimpleJson.DeserializeObject(iceCandidates);
             JsonArray jsonArray = (JsonArray)jsonObjects[0];
 
-            foreach (JsonObject jsonObj in jsonArray)
+            foreach (JsonObject jsonObj in jsonArray.Cast<JsonObject>())
             {
                 OnNewRemoteICECandidate?.Invoke((string)jsonObj["candidate"], (string)jsonObj["sdpMid"], Convert.ToInt32(jsonObj["sdpMLineIndex"]));
             }
         });
     }
 
-    public void SendImage(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics, Matrix4x4 distortion)
+    public void SendImage(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics)
     {
-        StartCoroutine(SendImageCoroutine(image, cameraToWorldMatrix, instrinsics, distortion));
+        StartCoroutine(SendImageCoroutine(image, cameraToWorldMatrix, instrinsics));
     }
 
-    private IEnumerator SendImageCoroutine(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics, Matrix4x4 distortion)
+    private IEnumerator SendImageCoroutine(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics)
     {
         string base64Image = Convert.ToBase64String(image);
 
         // Convert matrices to float arrays
         float[] camToWorldArray = MatrixToFloatArray(cameraToWorldMatrix);
         float[] projArray = MatrixToFloatArray(instrinsics);
-        float [] distArray = MatrixToFloatArray(distortion);
 
-        System.DateTime epochStart = new(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        DateTime epochStart = new(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         long currTime = (long)(DateTime.UtcNow - epochStart).TotalMilliseconds;
         var imageData = new ImageData
         {
             timestamp = currTime,
             image = base64Image,
             cameraToWorldMatrix = camToWorldArray,
-            instrinsics = projArray,
-            distortion = distArray
+            instrinsics = projArray
         };
 
         string jsonPayload = JsonUtility.ToJson(imageData);

@@ -1372,9 +1372,10 @@ MonoBehaviour:
   _serverCommunication: {fileID: 404426534}
   _mediaManager: {fileID: 899961967}
   _meshManager: {fileID: 1525565609}
-  prefab: {fileID: 100002, guid: 6ceef383a3dfd0a4e9c38b8d793170e4, type: 3}
   LLMResponseText: {fileID: 1414818710}
+  arObjectPrefab: {fileID: 100002, guid: 6ceef383a3dfd0a4e9c38b8d793170e4, type: 3}
   _sendImageFreqHz: 1
+  enableDebug: 0
 --- !u!1 &896488111
 GameObject:
   m_ObjectHideFlags: 0
@@ -1554,6 +1555,8 @@ MonoBehaviour:
   _screenRendererRGB: {fileID: 726960296}
   _strideAdjustmentShader: {fileID: 4800000, guid: dd4c5ca8a9ac14c9face6b82cbb4ab85,
     type: 3}
+  _targetImageWidth: 1280
+  _targetImageHeight: 720
 --- !u!114 &899961966
 MonoBehaviour:
   m_ObjectHideFlags: 0

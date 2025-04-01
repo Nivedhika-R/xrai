@@ -18,7 +18,6 @@ import functools
 whisper.torch.load = functools.partial(whisper.torch.load, weights_only=True)
 
 logger.info("Loading Whisper model...")
-
 model_name = "medium"
 audio_model = whisper.load_model(model_name + ".en")
 logger.info("Whisper model ready!")
@@ -126,6 +125,11 @@ class RemoteAudioToWhisper(MediaStreamTrack):
         return frame
 
     def stop(self):
-        self._stopped = True
-        self.wav_writer.close()
+        if self.stopped:
+            return
+        self.stopped = True
+
+        if self.debug:
+            self.wav_writer.close()
+
         super().stop()

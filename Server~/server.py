@@ -24,6 +24,7 @@ from constants import *
 from logger import logger
 from chatgpt_helper import ChatGPTHelper
 from whisper_helper import RemoteAudioToWhisper
+from yolo_helper import YoloHelper
 
 server_id = 0
 next_client_id = 1
@@ -38,6 +39,7 @@ msg_queue = Queue()
 image_deque = deque()
 
 chatgpt = ChatGPTHelper()
+yolo = YoloHelper("yolov8n.pt")
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -62,12 +64,26 @@ async def logout(request):
     client_id = int(request.match_info["id"])
     logger.info("User %s logged out", client_id)
 
+    if client_id in consume_tasks:
+        consume_tasks[client_id].cancel()
+        del consume_tasks[client_id]
+
     if client_id in pcs:
-        await pcs[client_id].close()
+        pc = pcs[client_id]
+        for transceiver in pc.getTransceivers():
+            track = transceiver.receiver.track
+            if track:
+                try:
+                    track.stop()
+                except Exception as e:
+                    logger.warning(f"Failed to stop track for user {client_id}: {e}")
+        await pc.close()
         del pcs[client_id]
+
     if client_id in recorders:
         await recorders[client_id].stop()
         del recorders[client_id]
+
     ices.pop(client_id, None)
 
     return web.Response(status=200)
@@ -240,7 +256,6 @@ async def post_image(request):
         timestamp = data.get("timestamp", -1)
         camera_to_world = data.get("cameraToWorldMatrix", [])
         instrinsics = data.get("instrinsics", [])
-        distortion = data.get("distortion", [])
 
         if len(camera_to_world) == 16:
             values = list(map(float, camera_to_world))
@@ -250,22 +265,18 @@ async def post_image(request):
             values = list(map(float, instrinsics))
             proj_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
 
-        if len(distortion) == 16:
-            values = list(map(float, distortion))
-            dist_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
-
         # Decode base64 string
         image_bytes = base64.b64decode(base64_str)
         image = Image.open(BytesIO(image_bytes))
 
-        image_deque.append((client_id, image, cam_mat, proj_mat, dist_mat, timestamp))
+        image_deque.append((client_id, image, cam_mat, proj_mat, timestamp))
 
-        logger.info("Received image from client %s", client_id)
+        # logger.info("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
 
     except Exception as e:
         logger.error("Error receiving image from client %s: %s", client_id, e)
-        return web.Response(status=500, text="Failed to process image")
+        return web.Response(status=500, text="Failed to receive image")
 
 # GET /answer/{id}
 async def get_answers_for_id(request):
@@ -277,17 +288,28 @@ async def get_answers_for_id(request):
 async def root_redirect(request):
     raise web.HTTPFound("/client/index.html")
 
-# Clean shutdown
 async def on_shutdown(app):
     logger.info("Shutting down...")
+
     for task in consume_tasks.values():
         task.cancel()
+
     for pc in pcs.values():
+        for transceiver in pc.getTransceivers():
+            track = transceiver.receiver.track
+            if track:
+                try:
+                    track.stop()
+                except Exception as e:
+                    logger.warning(f"Failed to stop track during shutdown: {e}")
         await pc.close()
+
     for recorder in recorders.values():
         await recorder.stop()
+
     pcs.clear()
     recorders.clear()
+    consume_tasks.clear()
 
 def handle_images():
     global image_deque, msg_queue
@@ -298,38 +320,52 @@ def handle_images():
                 time.sleep(0.1)
                 continue
 
-            client_id, img, cam_mat, proj_mat, dist_mat, timestamp = image_deque[-1]
-            client_id = int(client_id)
-
+            client_id, img, cam_mat, proj_mat, timestamp = image_deque[-1]
             image_deque.clear()
             if img is None:
                 break
 
+            client_id = int(client_id)
             img = np.array(img)
-            img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-            # save image to disk (to debug)
-            os.makedirs("images", exist_ok=True)
-            img_path = os.path.join("images", f"image_c{client_id}_{timestamp}.png")
-            cv2.imwrite(img_path, img_bgr)
+            # ask ChatGPT
+            llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
 
-            # llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
-
+            # run YOLO
+            object_labels = []
             object_centers = []
-            object_centers.append((img.shape[1]/2, img.shape[0]/2))
+            yolo_results = yolo.predict(img)
+            for result in yolo_results:
+                object_labels.append(result["class_name"])
+                bbox = result["bbox"]
+                x1, y1, x2, y2 = bbox
+                center_x = (x1 + x2) / 2
+                center_y = (y1 + y2) / 2
+                object_centers.append((center_x, center_y))
 
-            llm_reply = "hi"
+            # # save image to disk (to debug)
+            # os.makedirs("images", exist_ok=True)
+            # img_path = os.path.join("images", f"image_c{client_id}_{timestamp}.png")
+            # img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            # # draw bounding boxes
+            # for result in yolo_results:
+            #     bbox = result["bbox"]
+            #     x1, y1, x2, y2 = bbox
+            #     cv2.rectangle(img_bgr, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+            #     cv2.putText(img_bgr, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            # cv2.imwrite(img_path, img_bgr)
+
             msg = {
                 "clientID": client_id,
                 "type": "llm_reply",
                 "content": llm_reply,
                 "imageWidth": img.shape[1],
                 "imageHeight": img.shape[0],
+                "objectLabels": object_labels,
                 "objectCenters": object_centers,
                 "timestamp": timestamp,
                 "extrinsics": cam_mat.flatten().tolist(),
-                "instrinsics": proj_mat.flatten().tolist(),
-                "distortion": dist_mat.flatten().tolist(),
+                "instrinsics": proj_mat.flatten().tolist()
             }
             msg_queue.put(msg)
         except Exception as e:

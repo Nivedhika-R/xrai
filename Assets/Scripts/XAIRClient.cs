@@ -17,32 +17,29 @@ public class XAIRClient : Singleton<XAIRClient>
     [Tooltip("Set to true if using HTTP instead of HTTPS")]
     private bool noSSL = false;
 
-
     [Header("Managers")]
     [SerializeField]
     private ServerCommunication _serverCommunication;
     [SerializeField]
     private MediaManager _mediaManager;
-
     [SerializeField]
     private TriangleMeshing _meshManager;
 
     [SerializeField]
-    private GameObject prefab;
-
-    [SerializeField]
     private TextMeshProUGUI LLMResponseText = null;
-
-    private readonly bool debug = false;
-
-    private string _serverUri;
-    private bool connected = false;
-
     private float _sendImagetimer = 0.0f;
     [SerializeField]
     private float _sendImageFreqHz = 1.0f;
 
+    [SerializeField]
+    private bool enableDebug = false;
+
+    private string _serverUri;
+    private bool connected = false;
+
     public Action<bool, string> OnWebRTCConnectionChanged;
+
+    private readonly List<GameObject> activeTextObjects = new();
 
     public static Matrix4x4 StringToMatrix(string matrixStr)
     {
@@ -73,7 +70,7 @@ public class XAIRClient : Singleton<XAIRClient>
         Debug.Log("XAIRClient starting at " + _serverUri);
 
         // "origin"
-        if (debug) {
+        if (enableDebug) {
             GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             marker.transform.localPosition = new Vector3(0.0f, 1.6f, 0.0f);
             marker.transform.localScale = new Vector3(0.02f, 0.02f, 0.02f);
@@ -98,18 +95,17 @@ public class XAIRClient : Singleton<XAIRClient>
         if (_sendImagetimer >= 1.0f / _sendImageFreqHz)
         {
             _sendImagetimer = 0.0f;
-
             byte[] imageBytes = _mediaManager.GetImage(
                                         out Matrix4x4 cameraToWorldMatrix,
                                         out Matrix4x4 instrinsics,
-                                        out Matrix4x4 distortion,
+                                        out _, // ignore distortion
                                         true);
             if (imageBytes != null)
             {
                 // offset y coordinate by 1.6
                 cameraToWorldMatrix.m13 += 1.6f;
                 // send image to server
-                _serverCommunication.SendImage(imageBytes, cameraToWorldMatrix, instrinsics, distortion);
+                _serverCommunication.SendImage(imageBytes, cameraToWorldMatrix, instrinsics);
             }
         }
     }
@@ -156,7 +152,7 @@ public class XAIRClient : Singleton<XAIRClient>
                 string clientID = jsonObj["clientID"].ToString();
                 string timestamp = jsonObj["timestamp"].ToString();
 
-                string llm_reply = jsonObj["content"].ToString();
+                string llmReply = jsonObj["content"].ToString();
 
                 uint imageWidth = uint.Parse(jsonObj["imageWidth"].ToString());
                 uint imageHeight = uint.Parse(jsonObj["imageHeight"].ToString());
@@ -164,7 +160,16 @@ public class XAIRClient : Singleton<XAIRClient>
 
                 Matrix4x4 cameraToWorldMatrix = StringToMatrix(jsonObj["extrinsics"].ToString());
                 Matrix4x4 instrinsics = StringToMatrix(jsonObj["instrinsics"].ToString());
-                Matrix4x4 distortion = StringToMatrix(jsonObj["distortion"].ToString());
+
+                var objectLabelsArray = jsonObj["objectLabels"] as JsonArray;
+                List<string> objectLabels = new();
+                foreach (var label in objectLabelsArray)
+                {
+                    if (label is string labelStr)
+                    {
+                        objectLabels.Add(labelStr);
+                    }
+                }
 
                 var objectCentersArray = jsonObj["objectCenters"] as JsonArray;
                 List<Vector2> objectCenters = new();
@@ -178,18 +183,40 @@ public class XAIRClient : Singleton<XAIRClient>
                     }
                 }
 
-                Vector3 cameraPositionWorld = cameraToWorldMatrix.GetColumn(3);
+                // destroy old text objects
+                for (int i = 0; i < activeTextObjects.Count; i++)
+                {
+                    Destroy(activeTextObjects[i]);
+                }
+                activeTextObjects.Clear();
 
                 // project object centers (image space) into world space
                 for (int i = 0; i < objectCenters.Count; i++)
                 {
+                    string objectLabel = objectLabels[i];
                     Vector2 pixelCoords = objectCenters[i];
-                    if (RaycastToMesh(pixelCoords, imageDimensions, cameraToWorldMatrix, instrinsics, distortion, out Vector3 hitPoint))
+                    if (RaycastToMesh(pixelCoords, imageDimensions, cameraToWorldMatrix, instrinsics, out Vector3 hitPoint))
                     {
-                        prefab.transform.localScale = new Vector3(0.02f, 0.02f, 0.02f);
-                        Instantiate(prefab, hitPoint, Quaternion.identity);
+                        GameObject textObject = new("LabelText");
+                        textObject.transform.localScale = new Vector3(0.125f, 0.125f, 0.125f);
+                        textObject.transform.position = hitPoint;
 
-                        if (debug) {
+                        TextMesh textMesh = textObject.AddComponent<TextMesh>();
+                        textMesh.text = objectLabel;
+                        textMesh.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                        textMesh.fontSize = 250;
+                        textMesh.characterSize = 0.01f;
+                        textMesh.color = Color.green;
+                        textMesh.alignment = TextAlignment.Center;
+                        textMesh.anchor = TextAnchor.MiddleCenter;
+
+                        textObject.transform.LookAt(Camera.main.transform);
+                        textObject.transform.Rotate(0, 180, 0);
+
+                        activeTextObjects.Add(textObject);
+
+                        if (enableDebug) {
+                            Vector3 cameraPositionWorld = cameraToWorldMatrix.GetColumn(3);
                             LineRenderer lr = new GameObject("RayLine").AddComponent<LineRenderer>();
                             lr.positionCount = 2;
                             lr.SetPosition(0, cameraPositionWorld);
@@ -197,37 +224,29 @@ public class XAIRClient : Singleton<XAIRClient>
                             lr.startWidth = lr.endWidth = 0.01f;
                         }
                     }
-                    else if (debug)
+                    else if (enableDebug)
                     {
                         Debug.LogWarning("Raycast failed to hit mesh.");
                     }
                 }
 
-                UpdateLLMResponseText(llm_reply);
+                UpdateLLMResponseText(llmReply);
             }
         }
     }
 
-    private bool RaycastToMesh(Vector2 pixelCoords, Vector2 imageDimensions, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics, Matrix4x4 distortion, out Vector3 hitPoint)
+    private bool RaycastToMesh(Vector2 pixelCoords, Vector2 imageDimensions, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics , out Vector3 hitPoint)
     {
-        // image space to ndc (normalized device coordinates) (-1 to 1)
         float fx = instrinsics.m00;
         float fy = instrinsics.m11;
         float cx = instrinsics.m02;
         float cy = instrinsics.m12;
 
+        // image space to ndc (normalized device coordinates) (-1 to 1)
         float x = (pixelCoords.x - cx) / fx;
-        float y = (pixelCoords.y - (imageDimensions.y - cy)) / fy; // invert y axis
+        float y = ((imageDimensions.y - pixelCoords.y) - cy) / fy;
 
-        float k1 = distortion.m00;
-        float k2 = distortion.m01;
-        float p1 = distortion.m02;
-        float p2 = distortion.m03;
-        float k3 = distortion.m10;
-
-        // undistort point
-        Vector2 undistorted = UndistortPoint(new Vector2(x, y), k1, k2, p1, p2, k3);
-        Vector3 cameraSpacePoint = new(undistorted.x, undistorted.y, 1.0f);
+        Vector3 cameraSpacePoint = new(x, y, 1.0f);
 
         // project to world space
         Vector3 rayDirWorld = cameraToWorldMatrix.MultiplyVector(cameraSpacePoint);
@@ -236,22 +255,6 @@ public class XAIRClient : Singleton<XAIRClient>
         Vector3 cameraPositionWorld = cameraToWorldMatrix.GetColumn(3);
         Ray ray = new(cameraPositionWorld, rayDirWorld);
         return _meshManager.RayCastToMesh(ray, out hitPoint);
-    }
-    private Vector2 UndistortPoint(Vector2 distorted, float k1, float k2, float p1, float p2, float k3)
-    {
-        Vector2 undistorted = distorted;
-        for (int i = 0; i < 5; i++) // usually 5 iterations is enough
-        {
-            float x = undistorted.x;
-            float y = undistorted.y;
-            float r2 = x * x + y * y;
-            float radial = 1 + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2;
-            float xTangential = 2 * p1 * x * y + p2 * (r2 + 2 * x * x);
-            float yTangential = p1 * (r2 + 2 * y * y) + 2 * p2 * x * y;
-            undistorted.x = (distorted.x - xTangential) / radial;
-            undistorted.y = (distorted.y - yTangential) / radial;
-        }
-        return undistorted;
     }
 
     private void UpdateLLMResponseText(string text)
