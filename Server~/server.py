@@ -25,6 +25,7 @@ from logger import logger
 from chatgpt_helper import ChatGPTHelper
 from whisper_helper import RemoteAudioToWhisper
 from yolo_helper import YoloHelper
+from preview import Preview
 
 server_id = 0
 next_client_id = 1
@@ -39,7 +40,7 @@ msg_queue = Queue()
 image_deque = deque()
 
 chatgpt = ChatGPTHelper()
-yolo = YoloHelper("/home/skartik/xair-dev/Server~/best.pt")
+yolo = YoloHelper("/home/audil/xair-dev/Server~/best.pt")
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -368,6 +369,7 @@ def handle_images():
                 "instrinsics": proj_mat.flatten().tolist()
             }
             msg_queue.put(msg)
+            preview.render(img, img.shape[1], img.shape[0], object_labels, object_centers, timestamp, content)
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break
