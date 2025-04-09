@@ -39,7 +39,7 @@ msg_queue = Queue()
 image_deque = deque()
 
 chatgpt = ChatGPTHelper()
-yolo = YoloHelper("yolov8n.pt")
+yolo = YoloHelper("/home/skartik/xair-dev/Server~/best.pt")
 
 @web.middleware
 async def cors_middleware(request, handler):

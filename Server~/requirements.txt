@@ -27,7 +27,7 @@ tqdm==4.67.1
 typing-extensions
 urllib3==2.3.0
 yarl==1.18.3
-
+soundfile==0.13.1
 SpeechRecognition==3.14.1
 
 torch==2.5.1
