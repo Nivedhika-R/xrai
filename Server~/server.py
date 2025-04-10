@@ -369,7 +369,7 @@ def handle_images():
                 "instrinsics": proj_mat.flatten().tolist()
             }
             msg_queue.put(msg)
-            preview.render(img, img.shape[1], img.shape[0], object_labels, object_centers, timestamp, content)
+            Preview.render(img, img.shape[1], img.shape[0], object_labels, object_centers, timestamp, content)
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break

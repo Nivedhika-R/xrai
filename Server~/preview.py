@@ -5,7 +5,7 @@ class Preview:
       return
     
     def render(self, img, width, height, object_labels, object_centers, timestamp, content):
-      draw = ImageDraw.Draw(image)
+      draw = ImageDraw.Draw(img)
 
       assert(len(object_labels) == len(object_centers))
       # add each of the labels
@@ -14,4 +14,4 @@ class Preview:
       
       # save the image
       output_path = "/images/img" + timestamp
-      image.save(output_path)
+      img.save(output_path)
