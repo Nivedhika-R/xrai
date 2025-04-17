@@ -41,6 +41,7 @@ image_deque = deque()
 
 chatgpt = ChatGPTHelper()
 yolo = YoloHelper("/home/audil/xair-dev/Server~/best.pt")
+preview = Preview()
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -268,8 +269,8 @@ async def post_image(request):
 
         # Decode base64 string
         image_bytes = base64.b64decode(base64_str)
-        image = Image.open(BytesIO(image_bytes))
-
+        image = np.array(Image.open(BytesIO(image_bytes)))
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         image_deque.append((client_id, image, cam_mat, proj_mat, timestamp))
 
         # logger.info("Received image from client %s", client_id)
@@ -344,17 +345,17 @@ def handle_images():
                 center_y = (y1 + y2) / 2
                 object_centers.append((center_x, center_y))
 
-            # # save image to disk (to debug)
+            # save image to disk (to debug)
             # os.makedirs("images", exist_ok=True)
             # img_path = os.path.join("images", f"image_c{client_id}_{timestamp}.png")
-            # img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            # # img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             # # draw bounding boxes
             # for result in yolo_results:
             #     bbox = result["bbox"]
             #     x1, y1, x2, y2 = bbox
-            #     cv2.rectangle(img_bgr, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-            #     cv2.putText(img_bgr, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            # cv2.imwrite(img_path, img_bgr)
+            #     cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+            #     cv2.putText(img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            # cv2.imwrite(img_path, img)
 
             msg = {
                 "clientID": client_id,
@@ -369,7 +370,7 @@ def handle_images():
                 "instrinsics": proj_mat.flatten().tolist()
             }
             msg_queue.put(msg)
-            Preview.render(img, img.shape[1], img.shape[0], object_labels, object_centers, timestamp, content)
+            preview.render(img, yolo_results, timestamp, llm_reply, client_id)
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break
