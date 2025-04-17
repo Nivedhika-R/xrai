@@ -27,6 +27,10 @@ from whisper_helper import RemoteAudioToWhisper
 from yolo_helper import YoloHelper
 from preview import Preview
 
+from tutorial_follower import TutorialFollower
+from query_collector import QueryCollector 
+from utils import Frame
+
 server_id = 0
 next_client_id = 1
 consume_tasks = {}
@@ -41,6 +45,9 @@ image_deque = deque()
 
 chatgpt = ChatGPTHelper()
 yolo = YoloHelper("/home/akul/xair-dev/Server~/best.pt")
+
+query_collector = QueryCollector(5) 
+tutorial_follower = TutorialFollower(query_collector)
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -329,8 +336,21 @@ def handle_images():
             client_id = int(client_id)
             img = np.array(img)
 
+            query_collector.add_frame(Frame(img, timestamp))
+
+
+            tutorial_answer = tutorial_follower.get_answer()
+            if tutorial_answer is None:
+                time.sleep(0.1)
+                continue
+
+            print("got past tutorial answer being none")
+            print(tutorial_answer)
+            
+            llm_reply = tutorial_answer
+
             # ask ChatGPT
-            llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
+            # llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
 
             # run YOLO
             object_labels = []
@@ -343,6 +363,8 @@ def handle_images():
                 center_x = (x1 + x2) / 2
                 center_y = (y1 + y2) / 2
                 object_centers.append((center_x, center_y))
+
+            print("got past yolo stuff")
 
             # # save image to disk (to debug)
             # os.makedirs("images", exist_ok=True)
@@ -369,7 +391,8 @@ def handle_images():
                 "instrinsics": proj_mat.flatten().tolist()
             }
             msg_queue.put(msg)
-            Preview.render(img, img.shape[1], img.shape[0], object_labels, object_centers, timestamp, content)
+            tutorial_follower.clear_answer()
+            # Preview.render(img, img.shape[1], img.shape[0], object_labels, object_centers, timestamp, content)
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break
@@ -409,5 +432,9 @@ if __name__ == "__main__":
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
     display_thread.start()
+
+    # Start the tutorial follower thread
+    tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
+    tutorial_thread.start()
 
     run_server(args)

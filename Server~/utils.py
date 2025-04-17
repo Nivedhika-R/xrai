@@ -1,5 +1,17 @@
+import time
+import io
 import cv2
 import base64
+import numpy as np
+
+from PIL import Image
+
+class Frame:
+    def __init__(self, img, ID):
+        self.img = img
+        self.frameID = ID
+        self.timestamp = time.time()
+
 
 def image2base64(image, png=False):
     _, buffer = cv2.imencode(".png", image) if png else cv2.imencode(".jpeg", image)
