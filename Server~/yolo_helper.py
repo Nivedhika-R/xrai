@@ -3,6 +3,7 @@ from ultralytics import YOLO
 
 class YoloHelper:
     def __init__(self, model_path):
+        # self.model = YOLO("yolov8n.pt")
         self.model = YOLO(model_path)
         self.model.fuse()
         self.model.to('cuda' if torch.cuda.is_available() else 'cpu')

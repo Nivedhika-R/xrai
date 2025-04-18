@@ -365,7 +365,7 @@ public class MagicLeapCameraManager : MonoBehaviour, ICameraDeviceManager
             _distortion.m32 = 0;
             _distortion.m33 = 1;
 
-            MLCVCamera.GetFramePose(resultExtras.VCamTimestamp, out _cameraToWorldMatrix);
+            _cameraToWorldMatrix = Camera.main.transform.localToWorldMatrix;
         }
     }
 

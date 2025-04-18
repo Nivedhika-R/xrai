@@ -20,6 +20,8 @@ public class ServerCommunication : MonoBehaviour
         public long timestamp;
         public float[] cameraToWorldMatrix;
         public float[] instrinsics;
+
+        public float[] distortion;
         public string image;
     }
 
@@ -300,18 +302,19 @@ public class ServerCommunication : MonoBehaviour
         });
     }
 
-    public void SendImage(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics)
+    public void SendImage(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics, Matrix4x4 distortion)
     {
-        StartCoroutine(SendImageCoroutine(image, cameraToWorldMatrix, instrinsics));
+        StartCoroutine(SendImageCoroutine(image, cameraToWorldMatrix, instrinsics, distortion));
     }
 
-    private IEnumerator SendImageCoroutine(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics)
+    private IEnumerator SendImageCoroutine(byte[] image, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics, Matrix4x4 distortion)
     {
         string base64Image = Convert.ToBase64String(image);
 
         // Convert matrices to float arrays
         float[] camToWorldArray = MatrixToFloatArray(cameraToWorldMatrix);
         float[] projArray = MatrixToFloatArray(instrinsics);
+        float[] distArray = MatrixToFloatArray(distortion);
 
         DateTime epochStart = new(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         long currTime = (long)(DateTime.UtcNow - epochStart).TotalMilliseconds;
@@ -320,7 +323,8 @@ public class ServerCommunication : MonoBehaviour
             timestamp = currTime,
             image = base64Image,
             cameraToWorldMatrix = camToWorldArray,
-            instrinsics = projArray
+            instrinsics = projArray,
+            distortion = distArray
         };
 
         string jsonPayload = JsonUtility.ToJson(imageData);
