@@ -41,6 +41,7 @@ public class XAIRClient : Singleton<XAIRClient>
 
     private readonly List<GameObject> activeTextObjects = new();
 
+
     public static Matrix4x4 StringToMatrix(string matrixStr)
     {
         string[] parts = matrixStr.Trim('[', ']').Split(',');
@@ -98,14 +99,14 @@ public class XAIRClient : Singleton<XAIRClient>
             byte[] imageBytes = _mediaManager.GetImage(
                                         out Matrix4x4 cameraToWorldMatrix,
                                         out Matrix4x4 instrinsics,
-                                        out _, // ignore distortion
+                                        out Matrix4x4 distortion, // ignore distortion
                                         true);
             if (imageBytes != null)
             {
                 // offset y coordinate by 1.6
-                cameraToWorldMatrix.m13 += 1.6f;
+                // cameraToWorldMatrix.m13 += 1.6f;
                 // send image to server
-                _serverCommunication.SendImage(imageBytes, cameraToWorldMatrix, instrinsics);
+                _serverCommunication.SendImage(imageBytes, cameraToWorldMatrix, instrinsics, distortion);
             }
         }
     }
@@ -161,6 +162,8 @@ public class XAIRClient : Singleton<XAIRClient>
                 Matrix4x4 cameraToWorldMatrix = StringToMatrix(jsonObj["extrinsics"].ToString());
                 Matrix4x4 instrinsics = StringToMatrix(jsonObj["instrinsics"].ToString());
 
+                Matrix4x4 distortion = StringToMatrix(jsonObj["distortion"].ToString());
+
                 var objectLabelsArray = jsonObj["objectLabels"] as JsonArray;
                 List<string> objectLabels = new();
                 foreach (var label in objectLabelsArray)
@@ -195,7 +198,7 @@ public class XAIRClient : Singleton<XAIRClient>
                 {
                     string objectLabel = objectLabels[i];
                     Vector2 pixelCoords = objectCenters[i];
-                    if (RaycastToMesh(pixelCoords, imageDimensions, cameraToWorldMatrix, instrinsics, out Vector3 hitPoint))
+                    if (RaycastToMesh(pixelCoords, imageDimensions, cameraToWorldMatrix, instrinsics, distortion, out Vector3 hitPoint))
                     {
                         GameObject textObject = new("LabelText");
                         textObject.transform.localScale = new Vector3(0.125f, 0.125f, 0.125f);
@@ -235,27 +238,40 @@ public class XAIRClient : Singleton<XAIRClient>
         }
     }
 
-    private bool RaycastToMesh(Vector2 pixelCoords, Vector2 imageDimensions, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics , out Vector3 hitPoint)
+    private bool RaycastToMesh(Vector2 pixelCoords, Vector2 imageDimensions, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics , Matrix4x4 distortion, out Vector3 hitPoint)
     {
         float fx = instrinsics.m00;
         float fy = instrinsics.m11;
         float cx = instrinsics.m02;
         float cy = instrinsics.m12;
 
-        // image space to ndc (normalized device coordinates) (-1 to 1)
-        float x = (pixelCoords.x - cx) / fx;
-        float y = ((imageDimensions.y - pixelCoords.y) - cy) / fy;
+        float k1 = distortion.m00;
+        float k2 = distortion.m01;
+        float p1 = distortion.m02;
+        float p2 = distortion.m03;
+        float k3 = distortion.m10;
 
-        Vector3 cameraSpacePoint = new(x, y, 1.0f);
+        // Normalize pixel coordinates
+        Vector2 undistorted = normalizePixel(new Vector2(pixelCoords.x, pixelCoords.y));
 
-        // project to world space
-        Vector3 rayDirWorld = cameraToWorldMatrix.MultiplyVector(cameraSpacePoint);
+        // // Convert to camera space direction
+        Vector3 cameraSpacePoint = new Vector3(undistorted.x, undistorted.y, 1.0f);
+        var rotation = cameraToWorldMatrix.rotation;
+        Vector3 rayDirWorld = (rotation * cameraSpacePoint).normalized;
+        Vector3 cameraPositionWorld = cameraToWorldMatrix.GetPosition();
 
-        // raycast from camera to object
-        Vector3 cameraPositionWorld = cameraToWorldMatrix.GetColumn(3);
-        Ray ray = new(cameraPositionWorld, rayDirWorld);
+        Ray ray = new Ray(cameraPositionWorld, rayDirWorld);
         return _meshManager.RayCastToMesh(ray, out hitPoint);
-    }
+}
+
+Vector2 normalizePixel(Vector2 pixel)
+{
+    // Normalize pixel
+    float x = (pixel.x - cx) / fx;
+    float y = (pixel.y - cy) / fy;
+
+    return new Vector2(x, y);
+}
 
     private void UpdateLLMResponseText(string text)
     {

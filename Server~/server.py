@@ -27,6 +27,7 @@ from whisper_helper import RemoteAudioToWhisper
 from yolo_helper import YoloHelper
 from preview import Preview
 
+
 server_id = 0
 next_client_id = 1
 consume_tasks = {}
@@ -40,7 +41,7 @@ msg_queue = Queue()
 image_deque = deque()
 
 chatgpt = ChatGPTHelper()
-yolo = YoloHelper("/home/audil/xair-dev/Server~/best.pt")
+yolo = YoloHelper("./best.pt")
 preview = Preview()
 
 @web.middleware
@@ -258,6 +259,7 @@ async def post_image(request):
         timestamp = data.get("timestamp", -1)
         camera_to_world = data.get("cameraToWorldMatrix", [])
         instrinsics = data.get("instrinsics", [])
+        distortion = data.get("distortion", [])
 
         if len(camera_to_world) == 16:
             values = list(map(float, camera_to_world))
@@ -266,12 +268,16 @@ async def post_image(request):
         if len(instrinsics) == 16:
             values = list(map(float, instrinsics))
             proj_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+            
+        if len(distortion) == 16:
+            values = list(map(float, distortion))
+            dist_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
 
         # Decode base64 string
         image_bytes = base64.b64decode(base64_str)
-        image = np.array(Image.open(BytesIO(image_bytes)))
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        image_deque.append((client_id, image, cam_mat, proj_mat, timestamp))
+        image = Image.open(BytesIO(image_bytes))
+
+        image_deque.append((client_id, image, cam_mat, proj_mat, dist_mat, timestamp))
 
         # logger.info("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
@@ -322,7 +328,7 @@ def handle_images():
                 time.sleep(0.1)
                 continue
 
-            client_id, img, cam_mat, proj_mat, timestamp = image_deque[-1]
+            client_id, img, cam_mat, proj_mat, dist_mat, timestamp = image_deque[-1]
             image_deque.clear()
             if img is None:
                 break
@@ -332,7 +338,7 @@ def handle_images():
 
             # ask ChatGPT
             llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
-
+            llm_reply = str(time.time())
             # run YOLO
             object_labels = []
             object_centers = []
@@ -343,7 +349,7 @@ def handle_images():
                 x1, y1, x2, y2 = bbox
                 center_x = (x1 + x2) / 2
                 center_y = (y1 + y2) / 2
-                object_centers.append((center_x, center_y))
+                object_centers.append((center_x, img.shape[0] - center_y))
 
             # save image to disk (to debug)
             # os.makedirs("images", exist_ok=True)
@@ -367,7 +373,8 @@ def handle_images():
                 "objectCenters": object_centers,
                 "timestamp": timestamp,
                 "extrinsics": cam_mat.flatten().tolist(),
-                "instrinsics": proj_mat.flatten().tolist()
+                "instrinsics": proj_mat.flatten().tolist(),
+                "distortion": dist_mat.flatten().tolist()
             }
             msg_queue.put(msg)
             preview.render(img, yolo_results, timestamp, llm_reply, client_id)
