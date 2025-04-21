@@ -337,7 +337,6 @@ def handle_images():
 
             # ask ChatGPT
             llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
-            llm_reply = str(time.time())
             # run YOLO
             object_labels = []
             object_centers = []
