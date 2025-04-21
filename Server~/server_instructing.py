@@ -29,6 +29,7 @@ from preview import Preview
 
 from tutorial_follower import TutorialFollower
 from query_collector import QueryCollector 
+from debugger import Debugger
 from utils import Frame
 
 server_id = 0
@@ -44,10 +45,11 @@ msg_queue = Queue()
 image_deque = deque()
 
 chatgpt = ChatGPTHelper()
-yolo = YoloHelper("/home/akul/xair-dev/Server~/best.pt")
+yolo = YoloHelper("./best.pt")
 
 query_collector = QueryCollector(5) 
 tutorial_follower = TutorialFollower(query_collector)
+debugger = Debugger(tutorial_follower)
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -264,6 +266,7 @@ async def post_image(request):
         timestamp = data.get("timestamp", -1)
         camera_to_world = data.get("cameraToWorldMatrix", [])
         instrinsics = data.get("instrinsics", [])
+        distortion = data.get("distortion", [])
 
         if len(camera_to_world) == 16:
             values = list(map(float, camera_to_world))
@@ -272,12 +275,16 @@ async def post_image(request):
         if len(instrinsics) == 16:
             values = list(map(float, instrinsics))
             proj_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+            
+        if len(distortion) == 16:
+            values = list(map(float, distortion))
+            dist_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
 
         # Decode base64 string
         image_bytes = base64.b64decode(base64_str)
         image = Image.open(BytesIO(image_bytes))
 
-        image_deque.append((client_id, image, cam_mat, proj_mat, timestamp))
+        image_deque.append((client_id, image, cam_mat, proj_mat, dist_mat, timestamp))
 
         # logger.info("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
@@ -328,7 +335,7 @@ def handle_images():
                 time.sleep(0.1)
                 continue
 
-            client_id, img, cam_mat, proj_mat, timestamp = image_deque[-1]
+            client_id, img, cam_mat, proj_mat, dist_mat, timestamp = image_deque[-1]
             image_deque.clear()
             if img is None:
                 break
@@ -388,7 +395,8 @@ def handle_images():
                 "objectCenters": object_centers,
                 "timestamp": timestamp,
                 "extrinsics": cam_mat.flatten().tolist(),
-                "instrinsics": proj_mat.flatten().tolist()
+                "instrinsics": proj_mat.flatten().tolist(),
+                "distortion": dist_mat.flatten().tolist()
             }
             msg_queue.put(msg)
             tutorial_follower.clear_answer()
@@ -436,5 +444,10 @@ if __name__ == "__main__":
     # Start the tutorial follower thread
     tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
     tutorial_thread.start()
+    # Start the input listener in a daemon thread
+    
+    #debug thread
+    debug_thread = Thread(target=debugger.start, daemon=True)
+    debug_thread.start()
 
     run_server(args)
