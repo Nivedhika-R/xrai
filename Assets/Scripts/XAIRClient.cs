@@ -252,7 +252,7 @@ public class XAIRClient : Singleton<XAIRClient>
         float k3 = distortion.m10;
 
         // Normalize pixel coordinates
-        Vector2 undistorted = normalizePixel(new Vector2(pixelCoords.x, pixelCoords.y));
+        Vector2 undistorted = normalizePixel(new Vector2(pixelCoords.x, pixelCoords.y), fx, fy, cx, cy);
 
         // // Convert to camera space direction
         Vector3 cameraSpacePoint = new Vector3(undistorted.x, undistorted.y, 1.0f);
@@ -264,7 +264,7 @@ public class XAIRClient : Singleton<XAIRClient>
         return _meshManager.RayCastToMesh(ray, out hitPoint);
 }
 
-Vector2 normalizePixel(Vector2 pixel)
+Vector2 normalizePixel(Vector2 pixel, float fx, float fy, float cx, float cy)
 {
     // Normalize pixel
     float x = (pixel.x - cx) / fx;
