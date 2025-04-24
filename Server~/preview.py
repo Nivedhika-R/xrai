@@ -103,12 +103,5 @@ class Preview:
       combined = self.img
       if(self.llm_reply is not None):
         llm_img = self.fit_text_in_two_lines(blank, self.llm_reply)
-
-        # TODO: also want to add instructions on the right
-
         combined = np.concatenate((self.img, llm_img), axis=0) # axis = 0 for vertical, 1 for horizontal 
       cv2.imwrite(img_path, combined)
-
-      # render photo dynamically in popup (this doesn't work on nunga)
-      # cv2.imshow("Dynamic Image", combined)
-      # ^ TODO: can do this in a separate script/client, running parallel to main
