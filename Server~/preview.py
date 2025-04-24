@@ -68,7 +68,7 @@ class Preview:
       return img
 
     def addImg(self, img, yolo_results, timestamp, client_id):
-      self.img = img
+      self.img = img.copy()
       self.yolo_results = yolo_results
       self.timestamp = timestamp
       self.client_id = client_id
@@ -84,9 +84,7 @@ class Preview:
         return
 
       # save image to disk
-      os.makedirs("images", exist_ok=True)
-      img_path = os.path.join("images", f"image_c{self.client_id}_{self.timestamp}_{self.imageCounter}.png")
-      # img_bgr = cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR)
+      img_path = "preview.jpg"
       self.imageCounter += 1
       width = self.img.shape[1]
       height = self.img.shape[0]
