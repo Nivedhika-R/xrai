@@ -1,5 +1,17 @@
-1. Put one finger up with your hand
-2. Put two fingers up with your hand
-3. Put three fingers up with your hand
-4. Put four fingers up with your hand
-5. Put five fingers up with your hand
+0. Place the transparent board so that the long side is facing you.
+1. Place a 5-connector from 1F to 5F.
+2. Place a 4-connector from E8 to B8.
+3. Place a 6-connector form B1 to B6.
+4. Place the Batteries from 6F to 8F, with the batteries facing you.
+5. Place the Music IC (U1) from E1 to E3.
+6. Place the Speaker (SP) E4 to E6.
+7. Place the PhotoResistor (RP) from D3 to B3.
+8. Place the LED (D1) from E6 to E8.
+9. Place the Switch (S1) from B6 to B8.
+10. Place a 3-connector from D2 to B2.
+11. Place a 2-connector from E3 to E4.
+12. Place a 2-connector from F1 to E1.
+13. Place a 2-connector from G5 to G6.
+14. Place a 1-connector on F8.
+15. Place a 2-connector from F8 to E8.
+16. You're done! Turn on the Switch (S1) and cover the the PhotoResistor (RP)!
