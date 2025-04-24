@@ -17,6 +17,9 @@ class TutorialFollower:
         self.task = "snap-circuit" #"humidifier"
         self.all_objects = {} # instruction: [object1, object2, ...]
 
+    def get_current_objects(self):
+        return self.all_objects[self.current_instruction]
+
     #Break instructions down into bite size steps
     def instruction_breakdown(self, instructions):
         prompt = "Can you break these intructions down into detailed steps of how to do each of the instruction? Assume all the components needed for the instructions are available. You do not need to give me too obvious or overly simplified steps. Give me each step as a bullet point list. Do not add extra lines or titles or details. If an instruction gives an option of two methods, just pick one and make sure the rest of the ingredients are consistant with it. Do not give me extra information or optional steps. Instructions: "+ instructions
