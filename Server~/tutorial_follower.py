@@ -109,8 +109,9 @@ class TutorialFollower:
         object_centers = []
         object_confidences = []
         yolo_results = self.yolo.predict(frame.img)
+        display_labels = {'1-connection': "1 connector", '2-connection': "2 connector", '3-connection': "3 connector", '4-connection': "4 connector", '5-connection': "5 connector", '6-connection': "6 connector", 'alarm': "Alarm", 'battery': "Battery", 'light': "LED Light", 'music': "Music", 'photo-res': "Photo Resistor", 'switch': "Switch"}
         for result in yolo_results:
-            object_labels.append(result["class_name"])
+            object_labels.append(display_labels[result["class_name"]])
             bbox = result["bbox"]
             x1, y1, x2, y2 = bbox
             center_x = (x1 + x2) / 2
@@ -126,9 +127,8 @@ class TutorialFollower:
             bbox = result["bbox"]
             x1, y1, x2, y2 = bbox
             cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-            cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
+            cv2.putText(frame.img, display_labels[result["class_name"]], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        # save the image
+
         return frame
-        # # save the image
-        # logger.warning("Saving image to %s", img_path)
-        # cv2.imwrite(img_path, frame.img)
+        
