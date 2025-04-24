@@ -1,7 +1,7 @@
 0. Place the transparent board so that the long side is facing you.
-1. Place a 5-connector from 1F to 5F.
-2. Place a 4-connector from E8 to B8.
-3. Place a 6-connector form B1 to B6.
+1. Place a 5-connector from 1F to 5F horizontally.
+2. Place a 4-connector from E8 to B8 vertically.
+3. Place a 6-connector form B1 to B6 horizontally.
 4. Place the Batteries from 6F to 8F, with the batteries facing you.
 5. Place the Music IC (U1) from E1 to E3.
 6. Place the Speaker (SP) E4 to E6.

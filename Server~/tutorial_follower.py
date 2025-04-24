@@ -27,7 +27,7 @@ class TutorialFollower:
         return self.chat_gpt.ask(prompt, frames)
 
     def is_instruction_complete(self, frames, instructions, current_instruction):
-        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view and the previous state. Does it look like the instruction may have been done? Be true with your answers, each piece needs to be in the location the instruction says. The board has each row names A-^ top to bottom and 1-10 as columns left to right. Answer just True or False. If false, tell me what I am missing. Remember right is left and left is right (the image is mirrored). Here is the complete list of instructions: " + str(instructions)
+        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view and the previous state. Does it look like the instruction may have been done? Be true with your answers, each piece needs to be in the location the instruction says. The board has each row named A-G top to bottom and 1-10 as columns left to right. Answer just True or False. If false, tell me what I am missing. Here is the complete list of instructions: " + str(instructions)
         return self.chat_gpt.ask(prompt, frames)
 
     def load_instructions(self, instruction_file, objects_file):
@@ -50,10 +50,8 @@ class TutorialFollower:
 
         print("Instructions:")
         for instruction in self.instructions:
-            if (instruction != "Task completed!"):
-                print("\t", instruction)
-        print("-", instruction)
-        print("  - Objects:", self.all_objects[instruction])
+            print("-", instruction)
+            print("  - Objects:", self.all_objects[instruction])
 
         self.current_instruction = self.instructions[0]
         self.start_following()
