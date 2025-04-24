@@ -32,7 +32,7 @@ class TutorialFollower:
         return self.chat_gpt.ask(prompt, frames)
 
     def is_instruction_complete(self, frames, instructions, current_instruction):
-        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view and the previous state. Does it look like the instruction may have been done? Be true with your answers, each piece needs to be in the location the instruction says. If you see the full snap circuit transparent board and you think it is likely that the step is done, be linient and say it is done. But if the full board is not visible in the image, do not assume the step is done. The board has each row named A-G top to bottom and 1-10 as columns left to right. Answer just True or False. If false, tell me what I am missing. Here is the complete list of instructions: " + str(instructions)
+        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view and the previous state. Does it look like the instruction may have been done? Be true with your answers, each piece needs to be in the location the instruction says. If you see the full snap circuit transparent board and you think it is likely that the step is done, be linient and say it is done. But if the full board is not visible in the image, do not assume the step is done. The board has each row named A-G top to bottom and 1-10 as columns left to right. Answer just True or False. If false, tell me what I am missing. One of the images I gave you actually has bounding boxes and labels for the different objects I see in the image...use that to help you better understand the step. Don't automatically skip steps if you havent see the step happen. Here is the complete list of instructions: " + str(instructions)
         return self.chat_gpt.ask(prompt, frames)
 
     def load_instructions(self, instruction_file, objects_file):
@@ -67,7 +67,7 @@ class TutorialFollower:
                 time.sleep(0.1)
             self.latest_frames = []
             self.latest_frames.append(self.frame_deque[-2])
-            self.latest_frames.append(self.frame_deque[-1])
+            self.latest_frames.append(self.run_object_detection(self.frame_deque[-1]))
             frame_imgs = []
             if len(self.latest_frames) > 0:
                 for frame in self.latest_frames:
@@ -128,7 +128,7 @@ class TutorialFollower:
             cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
             cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
-        return frame.img
+        return frame
         # # save the image
         # logger.warning("Saving image to %s", img_path)
         # cv2.imwrite(img_path, frame.img)
