@@ -6,7 +6,7 @@ using UnityEngine.XR;
 public class DoublePinchToHide : MonoBehaviour
 {
     [SerializeField]
-    private float doublePinchMaxTime = 0.3f; // time allowed between pinches
+    private float doublePinchMaxTime = 0.5f; // time allowed between pinches
 
     [SerializeField]
     private GameObject objectToHide;
@@ -30,11 +30,9 @@ public class DoublePinchToHide : MonoBehaviour
         if (handsAggregator == null)
             return;
 
-        bool rightIsPinching = false, leftIsPinching = false;
-        if (handsAggregator.TryGetPinchProgress(XRNode.RightHand, out _, out rightIsPinching, out _) ||
-            handsAggregator.TryGetPinchProgress(XRNode.LeftHand, out _, out leftIsPinching, out _))
+        if (handsAggregator.TryGetPinchProgress(XRNode.RightHand, out _, out bool rightIsPinching, out _))
         {
-            if (rightIsPinching || leftIsPinching)
+            if (rightIsPinching)
             {
                 if (!pinchInProgress)
                 {

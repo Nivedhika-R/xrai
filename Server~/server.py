@@ -95,9 +95,9 @@ async def logout(request):
 
     return web.Response(status=200)
 
-async def dummy_consume(track):
-    while True:
-        await track.recv()
+# async def dummy_consume(track):
+#     while True:
+#         await track.recv()
 
 # POST /post_offer/{id}
 async def post_offer(request):
@@ -125,9 +125,9 @@ async def post_offer(request):
             logger.info("Receiving video from client (we dont send video so we should never get here...)")
         elif track.kind == "audio":
             logger.info("Receiving audio from client!")
-            audio_reader = RemoteAudioToWhisper(track)
-            consume_task = asyncio.create_task(dummy_consume(audio_reader))
-            consume_tasks[client_id] = consume_task
+            # audio_reader = RemoteAudioToWhisper(track)
+            # consume_task = asyncio.create_task(dummy_consume(audio_reader))
+            # consume_tasks[client_id] = consume_task
 
     @pc.on("datachannel")
     def on_datachannel(channel):
@@ -387,6 +387,8 @@ def run_object_detection(frame):
     object_confidences = []
     yolo_results = yolo.predict(frame.img)
     for result in yolo_results:
+        if args.instruct and result["class_name"] not in tutorial_follower.get_current_objects():
+            continue
         object_labels.append(result["class_name"])
         bbox = result["bbox"]
         x1, y1, x2, y2 = bbox
@@ -408,6 +410,9 @@ def run_object_detection(frame):
     # # save the image
     # logger.warning("Saving image to %s", img_path)
     # cv2.imwrite(img_path, frame.img)
+
+    if len(object_labels) == 0:
+        return
 
     msg = {
         "clientID": frame.client_id,
