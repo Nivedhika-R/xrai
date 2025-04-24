@@ -1,6 +1,6 @@
 from threading import Thread
 from openai import OpenAI
-
+from logger import logger
 from constants import *
 from utils import image2base64
 
@@ -22,8 +22,9 @@ class ChatGPTHelper:
         else:
             content = [{"type": "text", "text": question}]
             if type(image) == list:
-                for img in image:
-                    content.append({"type": "image_url", "image_url": {"url": image2base64(img)}})
+                for i,img in enumerate(image):
+                    if i == 0:
+                        content.append({"type": "image_url", "image_url": {"url": image2base64(img)}})
             else:
                 content.append({"type": "image_url", "image_url": {"url": image2base64(image)}})
             response_stream = self.client.chat.completions.create(
@@ -40,7 +41,6 @@ class ChatGPTHelper:
                 ],
                 stream=True
             )
-
         for chunk in response_stream:
             if hasattr(chunk.choices[0].delta, "content"):
                 yield chunk.choices[0].delta.content
