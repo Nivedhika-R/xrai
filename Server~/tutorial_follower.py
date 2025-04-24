@@ -1,6 +1,7 @@
 import time
 import numpy as np
 import cv2
+from frame import Frame
 
 from chatgpt_helper import ChatGPTHelper
 
@@ -32,8 +33,17 @@ class TutorialFollower:
         return self.chat_gpt.ask(prompt, frames)
 
     def is_instruction_complete(self, frames, instructions, current_instruction):
-        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view and the previous state. Does it look like the instruction may have been done? Be true with your answers, each piece needs to be in the location the instruction says. If you see the full snap circuit transparent board and you think it is likely that the step is done, be linient and say it is done. But if the full board is not visible in the image, do not assume the step is done. The board has each row named A-G top to bottom and 1-10 as columns left to right. Answer just True or False. If false, tell me what I am missing. One of the images I gave you actually has bounding boxes and labels for the different objects I see in the image...use that to help you better understand the step. Don't automatically skip steps if you havent see the step happen. Here is the complete list of instructions: " + str(instructions)
-        return self.chat_gpt.ask(prompt, frames)
+        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view and the previous state. Does it look like the instruction may have been done? Be true with your answers, each piece needs to be in the location the instruction says. If you see the full snap circuit transparent board and you think it is likely that the step is done, be linient and say it is done. But if the full board is not visible in the image, do not assume the step is done. The board has each row named A-G top to bottom and 1-10 as columns left to right. Answer just True or False. If false, tell me what I am missing. You also struggle to pick up step 2, you do not really detect that i have placed a 4 connector, which is annoying so fix that. You also always say step 3 is done even when it is not, so make sure the 6 connector is also on the board. One of the images I gave you actually has bounding boxes and labels for the different objects I see in the image...use that to help you better understand the step. Don't automatically skip steps if you havent see the step happen. I am also giving you an image of the expected view (last image i give you), so you can use that to understand if the user actually did the step yet or not. Here is the complete list of instructions: " + str(instructions)
+        #add sample image
+        sample_image_path = f"{self.instructions_path}/{self.task}/images/step{self.current_instruction_index}.png"
+        sample_image = cv2.imread(sample_image_path)
+        sample_image = cv2.cvtColor(sample_image, cv2.COLOR_BGR2RGB)
+        frame_temp = Frame(1, sample_image, None, None, None, time.time())
+        frames.append(frame_temp)
+        
+        ans = self.chat_gpt.ask(prompt, frames)
+        print("Answer from ChatGPT:", ans)
+        return ans
 
     def load_instructions(self, instruction_file, objects_file):
         file = open(instruction_file, "r")
@@ -129,6 +139,6 @@ class TutorialFollower:
             cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
             cv2.putText(frame.img, display_labels[result["class_name"]], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         # save the image
-
+        cv2.imwrite("yolo.png", frame.img)
         return frame
         
