@@ -364,6 +364,7 @@ def run_ask_chatgpt(query, frame):
         "timestamp": frame.timestamp
     }
     msg_queue.put(msg)
+    preview.addReply(llm_reply)
 
 def ask_tutorial(frame):
     tutorial_answer = tutorial_follower.get_answer()
@@ -381,6 +382,7 @@ def ask_tutorial(frame):
         "timestamp": frame.timestamp,
     }
     msg_queue.put(msg)
+    preview.addReply(llm_reply)
 
 def run_object_detection(frame):
     object_labels = []
@@ -431,7 +433,7 @@ def run_object_detection(frame):
         "distortion": frame.dist_mat.flatten().tolist()
     }
     msg_queue.put(msg)
-    preview.render(img, yolo_results, timestamp, llm_reply, client_id)
+    preview.addImg(frame.img, yolo_results, frame.timestamp, frame.client_id)
 
 
 
