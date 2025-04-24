@@ -360,7 +360,7 @@ def run_ask_chatgpt(query, frame):
         "clientID": frame.client_id,
         "type": "LLMReply",
         "content": llm_reply,
-        "timestamp": frame.timestamp,
+        "timestamp": frame.timestamp
     }
     msg_queue.put(msg)
 
@@ -371,7 +371,7 @@ def ask_tutorial(frame):
 
     print("got past tutorial answer being none")
     print(tutorial_answer)
-    
+
     llm_reply = tutorial_answer
     tutorial_follower.clear_answer()
     msg = {
@@ -396,19 +396,18 @@ def run_object_detection(frame):
         object_centers.append((center_x, frame.img.shape[0] - center_y))
         object_confidences.append(result["confidence"])
 
-    # save image to disk (to debug)
-    os.makedirs("images", exist_ok=True)
-    img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
-    img_bgr = cv2.cvtColor(frame.img, cv2.COLOR_RGB2BGR)
-    # draw bounding boxes
-    for result in yolo_results:
-        bbox = result["bbox"]
-        x1, y1, x2, y2 = bbox
-        cv2.rectangle(img_bgr, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-        cv2.putText(img_bgr, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-    # save the image
-    logger.warning("Saving image to %s", img_path)
-    cv2.imwrite(img_path, img_bgr)
+    # # save image to disk (to debug)
+    # os.makedirs("images", exist_ok=True)
+    # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
+    # # draw bounding boxes
+    # for result in yolo_results:
+    #     bbox = result["bbox"]
+    #     x1, y1, x2, y2 = bbox
+    #     cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+    #     cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    # # save the image
+    # logger.warning("Saving image to %s", img_path)
+    # cv2.imwrite(img_path, frame.img)
 
     msg = {
         "clientID": frame.client_id,
@@ -425,7 +424,6 @@ def run_object_detection(frame):
         "instrinsics": frame.proj_mat.flatten().tolist(),
         "distortion": frame.dist_mat.flatten().tolist()
     }
-    print(msg)
     msg_queue.put(msg)
 
 def run_server(args):
@@ -467,7 +465,7 @@ if __name__ == "__main__":
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
     display_thread.start()
-    
+
     # Start the tutorial follower thread
     if args.instruct:
         tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
