@@ -11,7 +11,7 @@
 10. Place a 3-connector from D2 to B2.
 11. Place a 2-connector from E3 to E4.
 12. Place a 2-connector from F1 to E1.
-13. Place a 2-connector from G5 to G6.
+13. Place a 2-connector from F5 to F6.
 14. Place a 1-connector on F8.
 15. Place a 2-connector from F8 to E8.
 16. You're done! Turn on the Switch (S1) and cover the PhotoResistor (RP)!
