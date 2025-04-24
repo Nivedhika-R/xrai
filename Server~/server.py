@@ -336,7 +336,7 @@ def handle_images():
                     continue
 
                 frame = frame_deque[-1]
-                run_object_detection(frame)
+                # run_object_detection(frame)
                 ask_tutorial(frame)
             else:
                 if len(frame_deque) == 0:

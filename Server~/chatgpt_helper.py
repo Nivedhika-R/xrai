@@ -20,7 +20,12 @@ class ChatGPTHelper:
                 stream=True
             )
         else:
-            data_url = image2base64(image)
+            content = [{"type": "text", "text": question}]
+            if type(image) == list:
+                for img in image:
+                    content.append({"type": "image_url", "image_url": {"url": image2base64(img)}})
+            else:
+                content.append({"type": "image_url", "image_url": {"url": image2base64(image)}})
             response_stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -30,10 +35,7 @@ class ChatGPTHelper:
                     },
                     {
                         "role": "user",
-                        "content": [
-                            {"type": "text", "text": question},
-                            {"type": "image_url", "image_url": {"url": data_url}}
-                        ]
+                        "content": content
                     }
                 ],
                 stream=True

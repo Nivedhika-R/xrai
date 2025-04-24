@@ -13,7 +13,7 @@ class TutorialFollower:
         self.answer =  None
         self.current_instruction = ""
         self.current_instruction_index = 0
-        self.task = "counting" #"humidifier"
+        self.task = "snap-circuit" #"humidifier"
 
     #Break instructions down into bite size steps
     def instruction_breakdown(self, instructions):
@@ -21,12 +21,12 @@ class TutorialFollower:
         return self.chat_gpt.ask_gpt_3_5(prompt).splitlines()
 
     def get_curr_instruction(self, frames, instructions):
-        prompt = "Provided is a list of instructions to perform a task. Look at the ego-centric images that show the last 10 seconds of what I have been doing from my headmounted device and tell me which step I should do next, that is, what is the instruction I should currently follow. Give me the instruction as an instruction number and nothing else in the format: 'Instruction number: <instruction>', with the first instruction being instruction 1. If you don't have an answer, answer with instruction 1. Make this inferrence based on what you see as the state of my environment in the image. Also tell me what objects in my image I need to do this instruction. Tell me in the format: 'Needed objects: <list of objects>'. Here are the instructions:" + str(instructions)
+        prompt = "Provided is a list of instructions to perform a task. Look at the ego-centric images that show the last 10 seconds of what I have been doing from my headmounted device and tell me which step I should do next, that is, what is the instruction I should currently follow. Give me the instruction as an instruction number and nothing else in the format: 'Instruction number: <instruction>', with the first instruction being instruction 1. If you don't have an answer, answer with instruction 1. Make this inference based on what you see as the state of my environment in the image. Also tell me what objects in my image I need to do this instruction. Tell me in the format: 'Needed objects: <list of objects>'. Here are the instructions:" + str(instructions)
         return self.chat_gpt.ask(prompt, frames)
 
     def is_instruction_complete(self, frames, instructions, current_instruction):
-        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view. Does it look like the instruction may have been done? If there is any chance it might be done, say true. Be lenient in your responses. Answer just True or False. If false, tell me what I am missing. If unsure, say 'true'. Remember right is left and left is right (the image is mirrored). Here is the complete list of instructions: " + str(instructions)
-        return self.chat_gpt.ask(prompt, frames[0])
+        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view and the previous state. Does it look like the instruction may have been done? Be true with your answers, each piece needs to be in the location the instruction says. The board has each row names A-^ top to bottom and 1-10 as columns left to right. Answer just True or False. If false, tell me what I am missing. Remember right is left and left is right (the image is mirrored). Here is the complete list of instructions: " + str(instructions)
+        return self.chat_gpt.ask(prompt, frames)
 
     def get_instruction(self, instruction_file, input_file):
         file = open(instruction_file, "r")
@@ -44,8 +44,7 @@ class TutorialFollower:
         self.inst_inputs = text.splitlines()
 
     def start(self):
-        if self.task == "counting":
-            self.get_instruction("instrs_and_inputs/counting/instructions.txt","instrs_and_inputs/counting/inputs.txt")
+        self.get_instruction(f"instrs_and_inputs/{self.task}/instructions.txt",f"instrs_and_inputs/{self.task}/inputs.txt")
 
         self.current_instruction = self.instructions[0]
         self.start_following()
