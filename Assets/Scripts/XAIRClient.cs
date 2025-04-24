@@ -168,7 +168,7 @@ public class XAIRClient : Singleton<XAIRClient>
 
                 var content = jsonObj["content"] as JsonObject;
 
-                var objectLabelsArray = content["objectLabels"] as JsonArray;
+                var objectLabelsArray = content["labels"] as JsonArray;
                 List<string> objectLabels = new();
                 foreach (var label in objectLabelsArray)
                 {
@@ -178,7 +178,7 @@ public class XAIRClient : Singleton<XAIRClient>
                     }
                 }
 
-                var objectCentersArray = content["objectCenters"] as JsonArray;
+                var objectCentersArray = content["centers"] as JsonArray;
                 List<Vector2> objectCenters = new();
                 foreach (var center in objectCentersArray)
                 {
@@ -188,6 +188,14 @@ public class XAIRClient : Singleton<XAIRClient>
                         float y = float.Parse(coords[1].ToString());
                         objectCenters.Add(new Vector2(x, y));
                     }
+                }
+
+                var objectConfidencesArray = content["confidences"] as JsonArray;
+                List<float> objectConfidences = new();
+                foreach (var confidence in objectConfidencesArray)
+                {
+                    Debug.Log("Confidence: " + confidence + " type: " + (confidence.GetType() == typeof(string)));
+                    objectConfidences.Add(float.Parse(confidence.ToString()));
                 }
 
                 // destroy old text objects
@@ -209,7 +217,7 @@ public class XAIRClient : Singleton<XAIRClient>
                         textObject.transform.position = hitPoint;
 
                         TextMesh textMesh = textObject.AddComponent<TextMesh>();
-                        textMesh.text = objectLabel;
+                        textMesh.text = $"{objectLabel} ({objectConfidences[i]:0.00})";
                         textMesh.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
                         textMesh.fontSize = 250;
                         textMesh.characterSize = 0.01f;

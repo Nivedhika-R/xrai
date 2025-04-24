@@ -278,8 +278,10 @@ async def post_image(request):
         # Decode base64 string
         image_bytes = base64.b64decode(base64_str)
         image = Image.open(BytesIO(image_bytes))
+        image_rgb = np.array(image)
+        image_rgb = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
 
-        frame_deque.append(Frame(client_id, image, cam_mat, proj_mat, dist_mat, timestamp))
+        frame_deque.append(Frame(client_id, image_rgb, cam_mat, proj_mat, dist_mat, timestamp))
 
         # logger.info("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
@@ -336,7 +338,7 @@ def handle_images():
                 break
 
             run_object_detection(frame) # run YOLO
-            run_ask_chatgpt("what color is this.", frame) # ask ChatGPT
+            # run_ask_chatgpt("what color is this.", frame) # ask ChatGPT
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break
@@ -355,6 +357,7 @@ def run_ask_chatgpt(query, frame):
 def run_object_detection(frame):
     object_labels = []
     object_centers = []
+    object_confidences = []
     yolo_results = yolo.predict(frame.img)
     for result in yolo_results:
         object_labels.append(result["class_name"])
@@ -363,6 +366,7 @@ def run_object_detection(frame):
         center_x = (x1 + x2) / 2
         center_y = (y1 + y2) / 2
         object_centers.append((center_x, frame.img.shape[0] - center_y))
+        object_confidences.append(result["confidence"])
 
     # save image to disk (to debug)
     os.makedirs("images", exist_ok=True)
@@ -382,8 +386,9 @@ def run_object_detection(frame):
         "clientID": frame.client_id,
         "type": "objectDetections",
         "content": {
-            "objectLabels": object_labels,
-            "objectCenters": object_centers
+            "labels": object_labels,
+            "centers": object_centers,
+            "confidences": object_confidences,
         },
         "imageWidth": frame.img.shape[1],
         "imageHeight": frame.img.shape[0],
@@ -392,6 +397,7 @@ def run_object_detection(frame):
         "instrinsics": frame.proj_mat.flatten().tolist(),
         "distortion": frame.dist_mat.flatten().tolist()
     }
+    print(msg)
     msg_queue.put(msg)
 
 def run_server(args):

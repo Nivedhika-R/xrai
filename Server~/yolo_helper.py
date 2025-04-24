@@ -20,7 +20,8 @@ class YoloHelper:
                 bbox = box.xyxy[0].tolist()
                 output.append({
                     'class_name': class_name,
-                    'bbox': bbox
+                    'bbox': bbox,
+                    'confidence': float(box.conf[0].item())
                 })
 
         return output
