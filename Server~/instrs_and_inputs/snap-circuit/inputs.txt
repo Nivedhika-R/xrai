@@ -1,3 +1,11 @@
+
+5-connection
+4-connection
+6-connection
+battery
+music
+speaker
+photo-res
 light
 switch
 3-connector
