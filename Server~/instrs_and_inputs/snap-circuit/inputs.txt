@@ -1,5 +1,8 @@
-hand
-hand
-hand
-hand
-hand
+light
+switch
+3-connector
+2-connector
+2-connector
+2-connector
+1-connector
+2-connector
