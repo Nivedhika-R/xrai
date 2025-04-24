@@ -19,7 +19,7 @@ whisper.torch.load = functools.partial(whisper.torch.load, weights_only=True)
 
 logger.info("Loading Whisper model...")
 model_name = "medium"
-audio_model = whisper.load_model(model_name + ".en")
+audio_model = None#whisper.load_model(model_name + ".en")
 logger.info("Whisper model ready!")
 
 class WhisperProcessor:
@@ -78,8 +78,8 @@ class RemoteAudioToWhisper(MediaStreamTrack):
         self.debug = False
 
         self.whisper_processor = WhisperProcessor()
-        self.whisper_thread = Thread(target=self.whisper_processor.run, daemon=True)
-        self.whisper_thread.start()
+        # self.whisper_thread = Thread(target=self.whisper_processor.run, daemon=True)
+        # self.whisper_thread.start()
 
         self.sample_rate = 16000 # Whisper has a sample rate of 16000
         self.resampler = AudioResampler(

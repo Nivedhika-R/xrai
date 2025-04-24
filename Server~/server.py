@@ -45,7 +45,7 @@ frame_deque = deque()
 
 chatgpt = ChatGPTHelper()
 yolo = YoloHelper("./best.pt")
-tutorial_follower = TutorialFollower(frame_deque)
+tutorial_follower = TutorialFollower(frame_deque, yolo=yolo)
 # yolo = YoloHelper("yolo11n.pt")
 
 @web.middleware
@@ -336,7 +336,7 @@ def handle_images():
                     continue
 
                 frame = frame_deque[-1]
-                # run_object_detection(frame)
+                run_object_detection(frame)
                 ask_tutorial(frame)
             else:
                 if len(frame_deque) == 0:
@@ -369,7 +369,6 @@ def ask_tutorial(frame):
     if tutorial_answer is None:
         return
 
-    print("got past tutorial answer being none")
     print(tutorial_answer)
 
     llm_reply = tutorial_answer
@@ -405,6 +404,7 @@ def run_object_detection(frame):
     #     x1, y1, x2, y2 = bbox
     #     cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
     #     cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    
     # # save the image
     # logger.warning("Saving image to %s", img_path)
     # cv2.imwrite(img_path, frame.img)
@@ -425,6 +425,7 @@ def run_object_detection(frame):
         "distortion": frame.dist_mat.flatten().tolist()
     }
     msg_queue.put(msg)
+
 
 def run_server(args):
     # SSL Setup

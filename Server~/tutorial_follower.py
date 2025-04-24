@@ -1,12 +1,14 @@
 import time
 import numpy as np
+import cv2
 
 from chatgpt_helper import ChatGPTHelper
 
 class TutorialFollower:
-    def __init__(self, frame_deque, instructions_path="instrs_and_inputs", task="snap-circuit"):
+    def __init__(self, frame_deque, yolo, instructions_path="instrs_and_inputs", task="snap-circuit"):
         self.instructions_path = instructions_path
         self.task = task
+        self.yolo = yolo
 
         self.frame_deque = frame_deque
         self.chat_gpt = ChatGPTHelper()
@@ -27,7 +29,7 @@ class TutorialFollower:
         return self.chat_gpt.ask(prompt, frames)
 
     def is_instruction_complete(self, frames, instructions, current_instruction):
-        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view and the previous state. Does it look like the instruction may have been done? Be true with your answers, each piece needs to be in the location the instruction says. Be lenient and if it looks mostly there then say True. The board has each row named A-G top to bottom and 1-10 as columns left to right. Answer just True or False. If false, tell me what I am missing. Here is the complete list of instructions: " + str(instructions)
+        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view and the previous state. Does it look like the instruction may have been done? Be true with your answers, each piece needs to be in the location the instruction says. If you see the full snap circuit transparent board and you think it is likely that the step is done, be linient and say it is done. But if the full board is not visible in the image, do not assume the step is done. The board has each row named A-G top to bottom and 1-10 as columns left to right. Answer just True or False. If false, tell me what I am missing. Here is the complete list of instructions: " + str(instructions)
         return self.chat_gpt.ask(prompt, frames)
 
     def load_instructions(self, instruction_file, objects_file):
@@ -97,3 +99,33 @@ class TutorialFollower:
 
     def clear_answer(self):
         self.answer = None
+        
+        
+    def run_object_detection(self, frame):
+        object_labels = []
+        object_centers = []
+        object_confidences = []
+        yolo_results = self.yolo.predict(frame.img)
+        for result in yolo_results:
+            object_labels.append(result["class_name"])
+            bbox = result["bbox"]
+            x1, y1, x2, y2 = bbox
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
+            object_centers.append((center_x, frame.img.shape[0] - center_y))
+            object_confidences.append(result["confidence"])
+
+        # # save image to disk (to debug)
+        # os.makedirs("images", exist_ok=True)
+        # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
+        # # draw bounding boxes
+        for result in yolo_results:
+            bbox = result["bbox"]
+            x1, y1, x2, y2 = bbox
+            cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+            cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        
+        return frame.img
+        # # save the image
+        # logger.warning("Saving image to %s", img_path)
+        # cv2.imwrite(img_path, frame.img)
