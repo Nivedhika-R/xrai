@@ -9,7 +9,7 @@ class YoloHelper:
         self.model.to('cuda' if torch.cuda.is_available() else 'cpu')
 
     def predict(self, image):
-        results = self.model.predict(source=image)
+        results = self.model.predict(source=image, verbose=False)
 
         output = []
         for result in results:
@@ -20,7 +20,8 @@ class YoloHelper:
                 bbox = box.xyxy[0].tolist()
                 output.append({
                     'class_name': class_name,
-                    'bbox': bbox
+                    'bbox': bbox,
+                    'confidence': float(box.conf[0].item())
                 })
 
         return output

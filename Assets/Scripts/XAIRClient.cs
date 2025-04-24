@@ -29,7 +29,7 @@ public class XAIRClient : Singleton<XAIRClient>
     private TextMeshProUGUI LLMResponseText = null;
     private float _sendImagetimer = 0.0f;
     [SerializeField]
-    private float _sendImageFreqHz = 1.0f;
+    private float _sendImageFreqHz = 0.2f;
 
     [SerializeField]
     private bool enableDebug = false;
@@ -96,18 +96,17 @@ public class XAIRClient : Singleton<XAIRClient>
         if (_sendImagetimer >= 1.0f / _sendImageFreqHz)
         {
             _sendImagetimer = 0.0f;
-            byte[] imageBytes = _mediaManager.GetImage(
-                                        out Matrix4x4 cameraToWorldMatrix,
-                                        out Matrix4x4 instrinsics,
-                                        out Matrix4x4 distortion, // ignore distortion
-                                        true);
-            if (imageBytes != null)
-            {
-                // offset y coordinate by 1.6
-                // cameraToWorldMatrix.m13 += 1.6f;
-                // send image to server
-                _serverCommunication.SendImage(imageBytes, cameraToWorldMatrix, instrinsics, distortion);
-            }
+            _mediaManager.GetImage(
+                (cameraToWorldMatrix, instrinsics, distortion, imageBytes) =>
+                    {
+                        if (imageBytes != null)
+                        {
+                            // offset y coordinate by 1.6
+                            // cameraToWorldMatrix.m13 += 1.6f;
+                            // send image to server
+                            _serverCommunication.SendImage(imageBytes, cameraToWorldMatrix, instrinsics, distortion);
+                        }
+                    }, png: false);
         }
     }
 
@@ -147,13 +146,16 @@ public class XAIRClient : Singleton<XAIRClient>
                 UpdateLLMResponseText(greeting);
             }
             else
-            if (msgType == "llm_reply")
+            if (msgType == "LLMReply")
             {
+                string llmReply = jsonObj["content"].ToString();
+                UpdateLLMResponseText(llmReply);
+            }
+            else
+            if (msgType == "objectDetections") {
                 // parse json
                 string clientID = jsonObj["clientID"].ToString();
                 string timestamp = jsonObj["timestamp"].ToString();
-
-                string llmReply = jsonObj["content"].ToString();
 
                 uint imageWidth = uint.Parse(jsonObj["imageWidth"].ToString());
                 uint imageHeight = uint.Parse(jsonObj["imageHeight"].ToString());
@@ -164,7 +166,9 @@ public class XAIRClient : Singleton<XAIRClient>
 
                 Matrix4x4 distortion = StringToMatrix(jsonObj["distortion"].ToString());
 
-                var objectLabelsArray = jsonObj["objectLabels"] as JsonArray;
+                var content = jsonObj["content"] as JsonObject;
+
+                var objectLabelsArray = content["labels"] as JsonArray;
                 List<string> objectLabels = new();
                 foreach (var label in objectLabelsArray)
                 {
@@ -174,7 +178,7 @@ public class XAIRClient : Singleton<XAIRClient>
                     }
                 }
 
-                var objectCentersArray = jsonObj["objectCenters"] as JsonArray;
+                var objectCentersArray = content["centers"] as JsonArray;
                 List<Vector2> objectCenters = new();
                 foreach (var center in objectCentersArray)
                 {
@@ -184,6 +188,14 @@ public class XAIRClient : Singleton<XAIRClient>
                         float y = float.Parse(coords[1].ToString());
                         objectCenters.Add(new Vector2(x, y));
                     }
+                }
+
+                var objectConfidencesArray = content["confidences"] as JsonArray;
+                List<float> objectConfidences = new();
+                foreach (var confidence in objectConfidencesArray)
+                {
+                    Debug.Log("Confidence: " + confidence + " type: " + (confidence.GetType() == typeof(string)));
+                    objectConfidences.Add(float.Parse(confidence.ToString()));
                 }
 
                 // destroy old text objects
@@ -205,7 +217,7 @@ public class XAIRClient : Singleton<XAIRClient>
                         textObject.transform.position = hitPoint;
 
                         TextMesh textMesh = textObject.AddComponent<TextMesh>();
-                        textMesh.text = objectLabel;
+                        textMesh.text = $"{objectLabel} ({objectConfidences[i]:0.00})";
                         textMesh.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
                         textMesh.fontSize = 250;
                         textMesh.characterSize = 0.01f;
@@ -232,10 +244,17 @@ public class XAIRClient : Singleton<XAIRClient>
                         Debug.LogWarning("Raycast failed to hit mesh.");
                     }
                 }
-
-                UpdateLLMResponseText(llmReply);
             }
         }
+    }
+
+    private Vector2 NormalizePixel(Vector2 pixel, float fx, float fy, float cx, float cy)
+    {
+        // Normalize pixel
+        float x = (pixel.x - cx) / fx;
+        float y = (pixel.y - cy) / fy;
+
+        return new Vector2(x, y);
     }
 
     private bool RaycastToMesh(Vector2 pixelCoords, Vector2 imageDimensions, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics , Matrix4x4 distortion, out Vector3 hitPoint)
@@ -245,33 +264,18 @@ public class XAIRClient : Singleton<XAIRClient>
         float cx = instrinsics.m02;
         float cy = instrinsics.m12;
 
-        float k1 = distortion.m00;
-        float k2 = distortion.m01;
-        float p1 = distortion.m02;
-        float p2 = distortion.m03;
-        float k3 = distortion.m10;
-
         // Normalize pixel coordinates
-        Vector2 undistorted = normalizePixel(new Vector2(pixelCoords.x, pixelCoords.y));
+        Vector2 undistorted = NormalizePixel(new Vector2(pixelCoords.x, pixelCoords.y), fx, fy, cx, cy);
 
         // // Convert to camera space direction
-        Vector3 cameraSpacePoint = new Vector3(undistorted.x, undistorted.y, 1.0f);
+        Vector3 cameraSpacePoint = new(undistorted.x, undistorted.y, 1.0f);
         var rotation = cameraToWorldMatrix.rotation;
         Vector3 rayDirWorld = (rotation * cameraSpacePoint).normalized;
         Vector3 cameraPositionWorld = cameraToWorldMatrix.GetPosition();
 
-        Ray ray = new Ray(cameraPositionWorld, rayDirWorld);
+        Ray ray = new(cameraPositionWorld, rayDirWorld);
         return _meshManager.RayCastToMesh(ray, out hitPoint);
-}
-
-Vector2 normalizePixel(Vector2 pixel)
-{
-    // Normalize pixel
-    float x = (pixel.x - cx) / fx;
-    float y = (pixel.y - cy) / fy;
-
-    return new Vector2(x, y);
-}
+    }
 
     private void UpdateLLMResponseText(string text)
     {

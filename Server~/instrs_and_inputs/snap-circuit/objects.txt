@@ -1,0 +1,17 @@
+
+5-connection
+4-connection
+6-connection
+battery
+music
+speaker
+photo-res
+light
+switch
+3-connection
+2-connection
+2-connection
+2-connection
+1-connection
+2-connection
+

@@ -1,20 +1,26 @@
 import time
-from threading import Thread, Event
-from queue import Queue
 import numpy as np
+import cv2
 
 from chatgpt_helper import ChatGPTHelper
 
 class TutorialFollower:
-    def __init__(self, query_collector):
-        self.query_collector = query_collector
+    def __init__(self, frame_deque, yolo, instructions_path="instrs_and_inputs", task="snap-circuit"):
+        self.instructions_path = instructions_path
+        self.task = task
+        self.yolo = yolo
+
+        self.frame_deque = frame_deque
         self.chat_gpt = ChatGPTHelper()
 
-        self.tutorial_instruction_processing = Thread(target=self._thread_loop, daemon=True)
-        self.answer: Response = None
+        self.answer =  None
         self.current_instruction = ""
         self.current_instruction_index = 0
-        self.task = "counting" #"humidifier"
+        self.task = "snap-circuit" #"humidifier"
+        self.all_objects = {} # instruction: [object1, object2, ...]
+
+    def get_current_objects(self):
+        return self.all_objects[self.current_instruction]
 
     #Break instructions down into bite size steps
     def instruction_breakdown(self, instructions):
@@ -22,42 +28,49 @@ class TutorialFollower:
         return self.chat_gpt.ask_gpt_3_5(prompt).splitlines()
 
     def get_curr_instruction(self, frames, instructions):
-        prompt = "Provided is a list of instructions to perform a task. Look at the ego-centric images that show the last 10 seconds of what I have been doing from my headmounted device and tell me which step I should do next, that is, what is the instruction I should currently follow. Give me the instruction as an instruction number and nothing else in the format: 'Instruction number: <instruction>', with the first instruction being instruction 1. If you don't have an answer, answer with instruction 1. Make this inferrence based on what you see as the state of my environment in the image. Also tell me what objects in my image I need to do this instruction. Tell me in the format: 'Needed objects: <list of objects>'. Here are the instructions:" + str(instructions)
+        prompt = "Provided is a list of instructions to perform a task. Look at the ego-centric images that show the last 10 seconds of what I have been doing from my headmounted device and tell me which step I should do next, that is, what is the instruction I should currently follow. Give me the instruction as an instruction number and nothing else in the format: 'Instruction number: <instruction>', with the first instruction being instruction 1. If you don't have an answer, answer with instruction 1. Make this inference based on what you see as the state of my environment in the image. Also tell me what objects in my image I need to do this instruction. Tell me in the format: 'Needed objects: <list of objects>'. Here are the instructions:" + str(instructions)
         return self.chat_gpt.ask(prompt, frames)
 
     def is_instruction_complete(self, frames, instructions, current_instruction):
-        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view. Does it look like the instruction may have been done? If there is any chance it might be done, say true. Be lenient in your responses. Answer just True or False. If false, tell me what I am missing. If unsure, say 'true'. Remember right is left and left is right (the image is mirrored). Here is the complete list of instructions: " + str(instructions)
-        return self.chat_gpt.ask(prompt, frames[0])
+        prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view and the previous state. Does it look like the instruction may have been done? Be true with your answers, each piece needs to be in the location the instruction says. If you see the full snap circuit transparent board and you think it is likely that the step is done, be linient and say it is done. But if the full board is not visible in the image, do not assume the step is done. The board has each row named A-G top to bottom and 1-10 as columns left to right. Answer just True or False. If false, tell me what I am missing. One of the images I gave you actually has bounding boxes and labels for the different objects I see in the image...use that to help you better understand the step. Don't automatically skip steps if you havent see the step happen. Here is the complete list of instructions: " + str(instructions)
+        return self.chat_gpt.ask(prompt, frames)
 
-    def get_instruction(self, instruction_file, input_file):
+    def load_instructions(self, instruction_file, objects_file):
         file = open(instruction_file, "r")
         text = file.read()
         self.instructions = text.splitlines()
-        self.instructions.append("Task completed!")
+
+        file = open(objects_file, "r")
+        text = file.read()
+        objects = text.splitlines()
+
+        for i in range(len(objects)):
+            objects[i] = objects[i].split(",")
+            for j in range(len(objects[i])):
+                objects[i][j] = objects[i][j].strip()
+            self.all_objects[self.instructions[i]] = objects[i]
+
+    def start(self):
+        self.load_instructions(f"{self.instructions_path}/{self.task}/instructions.txt", f"{self.instructions_path}/{self.task}/objects.txt")
 
         print("Instructions:")
         for instruction in self.instructions:
-            if (instruction != "Task completed!"):
-                print("\t", instruction)
-
-        file = open(input_file, "r")
-        text = file.read()
-        self.inst_inputs = text.splitlines()
-
-    def start(self):
-        if self.task == "counting":
-            self.get_instruction("instrs_and_inputs/counting/instructions.txt","instrs_and_inputs/counting/inputs.txt")
+            print("-", instruction)
+            print("  - Objects:", self.all_objects[instruction])
 
         self.current_instruction = self.instructions[0]
-        self.tutorial_instruction_processing.start()
+        self.start_following()
 
-    def _thread_loop(self):
+    def start_following(self):
         while True:
-            latest_frames = self.query_collector.get_latest_n_frames(1)
+            while len(self.frame_deque) < 2:
+                time.sleep(0.1)
+            self.latest_frames = []
+            self.latest_frames.append(self.frame_deque[-2])
+            self.latest_frames.append(self.run_object_detection(self.frame_deque[-1]))
             frame_imgs = []
-            if len(latest_frames) > 0:
-                last_frameID = latest_frames[-1].frameID
-                for frame in latest_frames:
+            if len(self.latest_frames) > 0:
+                for frame in self.latest_frames:
                     frame_imgs.append(np.asarray(frame.img))
                 try:
                     answer = self.is_instruction_complete(frame_imgs, self.instructions, self.current_instruction)
@@ -89,3 +102,33 @@ class TutorialFollower:
 
     def clear_answer(self):
         self.answer = None
+        
+        
+    def run_object_detection(self, frame):
+        object_labels = []
+        object_centers = []
+        object_confidences = []
+        yolo_results = self.yolo.predict(frame.img)
+        display_labels = {'1-connection': "1 connector", '2-connection': "2 connector", '3-connection': "3 connector", '4-connection': "4 connector", '5-connection': "5 connector", '6-connection': "6 connector", 'alarm': "Alarm", 'battery': "Battery", 'light': "LED Light", 'music': "Music", 'photo-res': "Photo Resistor", 'switch': "Switch"}
+        for result in yolo_results:
+            object_labels.append(display_labels[result["class_name"]])
+            bbox = result["bbox"]
+            x1, y1, x2, y2 = bbox
+            center_x = (x1 + x2) / 2
+            center_y = (y1 + y2) / 2
+            object_centers.append((center_x, frame.img.shape[0] - center_y))
+            object_confidences.append(result["confidence"])
+
+        # # save image to disk (to debug)
+        # os.makedirs("images", exist_ok=True)
+        # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
+        # # draw bounding boxes
+        for result in yolo_results:
+            bbox = result["bbox"]
+            x1, y1, x2, y2 = bbox
+            cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+            cv2.putText(frame.img, display_labels[result["class_name"]], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        # save the image
+
+        return frame
+        

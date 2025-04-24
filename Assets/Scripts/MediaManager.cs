@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using MagicLeap;
@@ -98,39 +99,48 @@ public class MediaManager : Singleton<MediaManager>
         return res;
     }
 
-    public byte[] ReadRenderTextureBytes(RenderTexture renderTexture, bool png = false)
+    public IEnumerator ReadRenderTextureimageBytesAsync(RenderTexture renderTexture, Action<byte[]> callback, bool png = false)
     {
-        // Set active RenderTexture
+        // Backup the currently active RenderTexture
         RenderTexture currentRT = RenderTexture.active;
         RenderTexture.active = renderTexture;
 
-        // Create a new Texture2D with same dimensions
-        Texture2D tex = new Texture2D(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
+        // Create the Texture2D
+        Texture2D tex = new(renderTexture.width, renderTexture.height, TextureFormat.RGB24, false);
 
-        // Read pixels from the RenderTexture
+        // Read pixels from RenderTexture (still runs on main thread)
         tex.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
         tex.Apply();
 
-        // Encode texture to PNG (you can also use EncodeToJPG or GetRawTextureData)
-        byte[] bytes;
+        // Wait for a frame to avoid blocking the current frame
+        yield return null;
+
+        // Encode texture to PNG or JPG
+        byte[] imageBytes;
         if (png)
-            bytes = tex.EncodeToPNG();
+            imageBytes = tex.EncodeToPNG();
         else
-            bytes = tex.EncodeToJPG(85);
+            imageBytes = tex.EncodeToJPG(85);
 
-        // Clean up
+        // Restore the previous RenderTexture
         RenderTexture.active = currentRT;
-        Destroy(tex); // if you're in a coroutine or function outside of OnDestroy
+        UnityEngine.Object.Destroy(tex);
 
-        return bytes;
+        // Return result via callback
+        callback?.Invoke(imageBytes);
     }
 
-    public byte[] GetImage(out Matrix4x4 cameraToWorldMatrix, out Matrix4x4 instrinsics, out Matrix4x4 distortion, bool png = false)
+    public void GetImage(Action<Matrix4x4,Matrix4x4,Matrix4x4,byte[]> callback, bool png = false)
     {
-        byte[] imageBytes = ReadRenderTextureBytes(_targetCameraDeviceManager.CameraTexture, png);
-        cameraToWorldMatrix = _targetCameraDeviceManager.CameraToWorldMatrix;
-        instrinsics = _targetCameraDeviceManager.Instrinsics;
-        distortion = _targetCameraDeviceManager.Distortion;
-        return imageBytes;
+        Matrix4x4 cameraToWorldMatrix = _targetCameraDeviceManager.CameraToWorldMatrix;
+        Matrix4x4 instrinsics = _targetCameraDeviceManager.Instrinsics;
+        Matrix4x4 distortion = _targetCameraDeviceManager.Distortion;
+        StartCoroutine(
+            ReadRenderTextureimageBytesAsync(_targetCameraDeviceManager.CameraTexture, (imageBytes) =>
+                {
+                    callback?.Invoke(cameraToWorldMatrix, instrinsics, distortion, imageBytes);
+                },
+            png)
+        );
     }
 }

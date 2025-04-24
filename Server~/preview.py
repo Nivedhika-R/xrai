@@ -67,6 +67,7 @@ class Preview:
       # save image to disk (to debug)
       os.makedirs("images", exist_ok=True)
       img_path = os.path.join("images", f"image_c{client_id}_{timestamp}.png")
+      img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
       width = img.shape[1]
       height = img.shape[0]
 
@@ -81,8 +82,11 @@ class Preview:
       blank = np.zeros(shape=(100, width, 3), dtype=np.int16)
       llm_img = self.fit_text_in_two_lines(blank, llm_reply)
 
+      # TODO: also want to add instructions on the right
+
       combined = np.concatenate((img, llm_img), axis=0) # axis = 0 for vertical, 1 for horizontal 
       cv2.imwrite(img_path, combined)
 
       # render photo dynamically in popup (this doesn't work on nunga)
       # cv2.imshow("Dynamic Image", combined)
+      # ^ TODO: can do this in a separate script/client, running parallel to main
