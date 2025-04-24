@@ -1,19 +1,20 @@
 import time
-from threading import Thread, Event
-from queue import Queue
 import numpy as np
 
 from chatgpt_helper import ChatGPTHelper
 
 class TutorialFollower:
-    def __init__(self, frame_deque):
+    def __init__(self, frame_deque, instructions_path="instrs_and_inputs", task="snap-circuit"):
+        self.instructions_path = instructions_path
+        self.task = task
+
         self.frame_deque = frame_deque
         self.chat_gpt = ChatGPTHelper()
 
         self.answer =  None
         self.current_instruction = ""
         self.current_instruction_index = 0
-        self.task = "counting" #"humidifier"
+        self.all_objects = {} # instruction: [object1, object2, ...]
 
     #Break instructions down into bite size steps
     def instruction_breakdown(self, instructions):
@@ -28,24 +29,28 @@ class TutorialFollower:
         prompt = "I am currently trying to do the instruction: " + current_instruction + "\n Have I done the instruction? I am giving you a frame showing the current state of my environment from an ego-centric view. Does it look like the instruction may have been done? If there is any chance it might be done, say true. Be lenient in your responses. Answer just True or False. If false, tell me what I am missing. If unsure, say 'true'. Remember right is left and left is right (the image is mirrored). Here is the complete list of instructions: " + str(instructions)
         return self.chat_gpt.ask(prompt, frames[0])
 
-    def get_instruction(self, instruction_file, input_file):
+    def load_instructions(self, instruction_file, objects_file):
         file = open(instruction_file, "r")
         text = file.read()
         self.instructions = text.splitlines()
-        self.instructions.append("Task completed!")
+
+        file = open(objects_file, "r")
+        text = file.read()
+        objects = text.splitlines()
+
+        for i in range(len(objects)):
+            objects[i] = objects[i].split(",")
+            for j in range(len(objects[i])):
+                objects[i][j] = objects[i][j].strip()
+            self.all_objects[self.instructions[i]] = objects[i]
+
+    def start(self):
+        self.load_instructions(f"{self.instructions_path}/{self.task}/instructions.txt", f"{self.instructions_path}/{self.task}/objects.txt")
 
         print("Instructions:")
         for instruction in self.instructions:
-            if (instruction != "Task completed!"):
-                print("\t", instruction)
-
-        file = open(input_file, "r")
-        text = file.read()
-        self.inst_inputs = text.splitlines()
-
-    def start(self):
-        if self.task == "counting":
-            self.get_instruction("instrs_and_inputs/counting/instructions.txt","instrs_and_inputs/counting/inputs.txt")
+            print("-", instruction)
+            print("  - Objects:", self.all_objects[instruction])
 
         self.current_instruction = self.instructions[0]
         self.start_following()
