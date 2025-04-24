@@ -47,6 +47,7 @@ chatgpt = ChatGPTHelper()
 yolo = YoloHelper("./best.pt")
 tutorial_follower = TutorialFollower(frame_deque, yolo=yolo)
 # yolo = YoloHelper("yolo11n.pt")
+preview = Preview()
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -430,6 +431,8 @@ def run_object_detection(frame):
         "distortion": frame.dist_mat.flatten().tolist()
     }
     msg_queue.put(msg)
+    preview.render(img, yolo_results, timestamp, llm_reply, client_id)
+
 
 
 def run_server(args):
