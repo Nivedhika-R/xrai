@@ -388,7 +388,6 @@ def run_object_detection(frame):
     object_confidences = []
     yolo_results = yolo.predict(frame.img)
     for result in yolo_results:
-        print("current objects: ", tutorial_follower.get_current_objects())
         if args.instruct and result["class_name"] not in tutorial_follower.get_current_objects():
             continue
         object_labels.append(result["class_name"])
