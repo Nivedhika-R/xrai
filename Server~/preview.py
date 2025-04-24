@@ -11,6 +11,7 @@ class Preview:
       self.llm_reply = None
       self.client_id = None
       self.imageCounter = 0
+      self.display_labels = {'1-connection': "1 connector", '2-connection': "2 connector", '3-connection': "3 connector", '4-connection': "4 connector", '5-connection': "5 connector", '6-connection': "6 connector", 'alarm': "Alarm", 'battery': "Battery", 'light': "LED Light", 'music': "Music", 'photo-res': "Photo Resistor", 'switch': "Switch"}
     
     def fit_text_in_two_lines(self, img, text, margin = 20):
       font=cv2.FONT_HERSHEY_SIMPLEX
@@ -94,7 +95,8 @@ class Preview:
           bbox = result["bbox"]
           x1, y1, x2, y2 = bbox
           cv2.rectangle(self.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-          cv2.putText(self.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+          cv2.putText(self.img, self.display_labels[result["class_name"]],
+                      (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
       
       # show llm content
       blank = np.zeros(shape=(100, width, 3), dtype=np.int16)
