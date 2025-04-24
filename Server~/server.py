@@ -28,6 +28,7 @@ from whisper_helper import RemoteAudioToWhisper
 from yolo_helper import YoloHelper
 from preview import Preview
 from frame import Frame
+from tutorial_follower import TutorialFollower
 
 
 server_id = 0
@@ -44,6 +45,7 @@ frame_deque = deque()
 
 chatgpt = ChatGPTHelper()
 yolo = YoloHelper("./best.pt")
+tutorial_follower = TutorialFollower(frame_deque)
 # yolo = YoloHelper("yolo11n.pt")
 
 @web.middleware
@@ -326,17 +328,25 @@ def handle_images():
 
     while True:
         try:
-            if len(frame_deque) == 0:
-                time.sleep(0.1)
-                continue
+            if args.instruct:
+                if len(frame_deque) == 0:
+                    time.sleep(0.1)
+                    continue
 
-            frame = frame_deque[-1]
-            frame_deque.clear()
-            if frame.img is None:
-                break
+                frame = frame_deque[-1]
+                run_object_detection(frame)
+                ask_tutorial(frame)
+            else:
+                if len(frame_deque) == 0:
+                    time.sleep(0.1)
+                    continue
 
-            run_object_detection(frame) # run YOLO
-            run_ask_chatgpt("what color is this.", frame) # ask ChatGPT
+                frame = frame_deque[-1]
+                frame_deque.clear()
+                if frame.img is None:
+                    break
+                run_object_detection(frame) # run YOLO
+                run_ask_chatgpt("what color is this.", frame) # ask ChatGPT
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break
@@ -344,6 +354,24 @@ def handle_images():
 def run_ask_chatgpt(query, frame):
     # ask ChatGPT
     llm_reply = chatgpt.ask(query, image=frame.img)
+    msg = {
+        "clientID": frame.client_id,
+        "type": "LLMReply",
+        "content": llm_reply,
+        "timestamp": frame.timestamp,
+    }
+    msg_queue.put(msg)
+
+def ask_tutorial(frame):
+    tutorial_answer = tutorial_follower.get_answer()
+    if tutorial_answer is None:
+        return
+
+    print("got past tutorial answer being none")
+    print(tutorial_answer)
+    
+    llm_reply = tutorial_answer
+    tutorial_follower.clear_answer()
     msg = {
         "clientID": frame.client_id,
         "type": "LLMReply",
@@ -424,6 +452,7 @@ if __name__ == "__main__":
     parser.add_argument('--no-ssl', action='store_true', help='Disable SSL')
     parser.add_argument('--pem', default='server.pem', help='Path to SSL certificate')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('--instruct', action='store_true', help='Enable instruction following')
     args = parser.parse_args()
 
     if args.debug:
@@ -432,5 +461,10 @@ if __name__ == "__main__":
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
     display_thread.start()
+    
+    # Start the tutorial follower thread
+    if args.instruct:
+        tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
+        tutorial_thread.start()
 
     run_server(args)

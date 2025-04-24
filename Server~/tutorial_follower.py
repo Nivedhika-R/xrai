@@ -6,12 +6,11 @@ import numpy as np
 from chatgpt_helper import ChatGPTHelper
 
 class TutorialFollower:
-    def __init__(self, query_collector):
-        self.query_collector = query_collector
+    def __init__(self, frame_deque):
+        self.frame_deque = frame_deque
         self.chat_gpt = ChatGPTHelper()
 
-        self.tutorial_instruction_processing = Thread(target=self._thread_loop, daemon=True)
-        self.answer: Response = None
+        self.answer =  None
         self.current_instruction = ""
         self.current_instruction_index = 0
         self.task = "counting" #"humidifier"
@@ -49,15 +48,18 @@ class TutorialFollower:
             self.get_instruction("instrs_and_inputs/counting/instructions.txt","instrs_and_inputs/counting/inputs.txt")
 
         self.current_instruction = self.instructions[0]
-        self.tutorial_instruction_processing.start()
+        self.start_following()
 
-    def _thread_loop(self):
+    def start_following(self):
         while True:
-            latest_frames = self.query_collector.get_latest_n_frames(1)
+            while len(self.frame_deque) < 2:
+                time.sleep(0.1)
+            self.latest_frames = []
+            self.latest_frames.append(self.frame_deque[-2])
+            self.latest_frames.append(self.frame_deque[-1])
             frame_imgs = []
-            if len(latest_frames) > 0:
-                last_frameID = latest_frames[-1].frameID
-                for frame in latest_frames:
+            if len(self.latest_frames) > 0:
+                for frame in self.latest_frames:
                     frame_imgs.append(np.asarray(frame.img))
                 try:
                     answer = self.is_instruction_complete(frame_imgs, self.instructions, self.current_instruction)
