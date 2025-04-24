@@ -349,7 +349,7 @@ def handle_images():
                 if frame.img is None:
                     break
                 run_object_detection(frame) # run YOLO
-                run_ask_chatgpt("what color is this.", frame) # ask ChatGPT
+                run_ask_chatgpt("how many fingers am i holding up.", frame) # ask ChatGPT
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break
@@ -363,6 +363,7 @@ def run_ask_chatgpt(query, frame):
         "content": llm_reply,
         "timestamp": frame.timestamp
     }
+    print(llm_reply)
     msg_queue.put(msg)
     preview.addReply(llm_reply)
 
@@ -409,13 +410,13 @@ def run_object_detection(frame):
     #     x1, y1, x2, y2 = bbox
     #     cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
     #     cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-    
+
     # # save the image
     # logger.warning("Saving image to %s", img_path)
     # cv2.imwrite(img_path, frame.img)
 
-    if len(object_labels) == 0:
-        return
+    # if len(object_labels) == 0:
+    #     return
 
     msg = {
         "clientID": frame.client_id,
@@ -434,8 +435,6 @@ def run_object_detection(frame):
     }
     msg_queue.put(msg)
     preview.addImg(frame.img, yolo_results, frame.timestamp, frame.client_id)
-
-
 
 def run_server(args):
     # SSL Setup
