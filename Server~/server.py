@@ -5,6 +5,7 @@ import json
 import asyncio
 import base64
 import argparse
+import logging
 
 from threading import Thread
 from queue import Queue
@@ -26,6 +27,7 @@ from chatgpt_helper import ChatGPTHelper
 from whisper_helper import RemoteAudioToWhisper
 from yolo_helper import YoloHelper
 from preview import Preview
+from frame import Frame
 
 
 server_id = 0
@@ -38,10 +40,11 @@ recorders = {}  # client_id: MediaRecorder
 ices = defaultdict(list)
 
 msg_queue = Queue()
-image_deque = deque()
+frame_deque = deque()
 
 chatgpt = ChatGPTHelper()
 yolo = YoloHelper("./best.pt")
+# yolo = YoloHelper("yolo11n.pt")
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -246,7 +249,7 @@ async def get_answers(request):
 
 # POST /post_image/{id}
 async def post_image(request):
-    global image_deque
+    global frame_deque
 
     client_id = request.match_info["id"]
     try:
@@ -267,7 +270,7 @@ async def post_image(request):
         if len(instrinsics) == 16:
             values = list(map(float, instrinsics))
             proj_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
-            
+
         if len(distortion) == 16:
             values = list(map(float, distortion))
             dist_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
@@ -276,7 +279,7 @@ async def post_image(request):
         image_bytes = base64.b64decode(base64_str)
         image = Image.open(BytesIO(image_bytes))
 
-        image_deque.append((client_id, image, cam_mat, proj_mat, dist_mat, timestamp))
+        frame_deque.append(Frame(client_id, image, cam_mat, proj_mat, dist_mat, timestamp))
 
         # logger.info("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
@@ -319,68 +322,77 @@ async def on_shutdown(app):
     consume_tasks.clear()
 
 def handle_images():
-    global image_deque, msg_queue
+    global frame_deque, msg_queue
 
     while True:
         try:
-            if len(image_deque) == 0:
+            if len(frame_deque) == 0:
                 time.sleep(0.1)
                 continue
 
-            client_id, img, cam_mat, proj_mat, dist_mat, timestamp = image_deque[-1]
-            image_deque.clear()
-            if img is None:
+            frame = frame_deque[-1]
+            frame_deque.clear()
+            if frame.img is None:
                 break
 
-            client_id = int(client_id)
-            img = np.array(img)
-
-            # ask ChatGPT
-            llm_reply = chatgpt.ask("Describe what I'm looking at.", image=img)
-            # run YOLO
-            object_labels = []
-            object_centers = []
-            yolo_results = yolo.predict(img)
-            for result in yolo_results:
-                object_labels.append(result["class_name"])
-                bbox = result["bbox"]
-                x1, y1, x2, y2 = bbox
-                center_x = (x1 + x2) / 2
-                center_y = (y1 + y2) / 2
-                object_centers.append((center_x, img.shape[0] - center_y))
-
-            # save image to disk (to debug)
-            os.makedirs("images", exist_ok=True)
-            img_path = os.path.join("images", f"image_c{client_id}_{timestamp}.png")
-            img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-            # draw bounding boxes
-            for result in yolo_results:
-                bbox = result["bbox"]
-                x1, y1, x2, y2 = bbox
-                cv2.rectangle(img_bgr, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                cv2.putText(img_bgr, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            # save the image
-            logger.warning("Saving image to %s", img_path)
-            cv2.imwrite(img_path, img_bgr)
-
-            msg = {
-                "clientID": client_id,
-                "type": "llm_reply",
-                "content": llm_reply,
-                "imageWidth": img.shape[1],
-                "imageHeight": img.shape[0],
-                "objectLabels": object_labels,
-                "objectCenters": object_centers,
-                "timestamp": timestamp,
-                "extrinsics": cam_mat.flatten().tolist(),
-                "instrinsics": proj_mat.flatten().tolist(),
-                "distortion": dist_mat.flatten().tolist()
-            }
-            msg_queue.put(msg)
-            Preview.render(img, img.shape[1], img.shape[0], object_labels, object_centers, timestamp, llm_reply)
+            run_object_detection(frame) # run YOLO
+            run_ask_chatgpt("what color is this.", frame) # ask ChatGPT
         except Exception as e:
             logger.error("Video processing stopped: %s", e)
             break
+
+def run_ask_chatgpt(query, frame):
+    # ask ChatGPT
+    llm_reply = chatgpt.ask(query, image=frame.img)
+    msg = {
+        "clientID": frame.client_id,
+        "type": "LLMReply",
+        "content": llm_reply,
+        "timestamp": frame.timestamp,
+    }
+    msg_queue.put(msg)
+
+def run_object_detection(frame):
+    object_labels = []
+    object_centers = []
+    yolo_results = yolo.predict(frame.img)
+    for result in yolo_results:
+        object_labels.append(result["class_name"])
+        bbox = result["bbox"]
+        x1, y1, x2, y2 = bbox
+        center_x = (x1 + x2) / 2
+        center_y = (y1 + y2) / 2
+        object_centers.append((center_x, frame.img.shape[0] - center_y))
+
+    # save image to disk (to debug)
+    os.makedirs("images", exist_ok=True)
+    img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
+    img_bgr = cv2.cvtColor(frame.img, cv2.COLOR_RGB2BGR)
+    # draw bounding boxes
+    for result in yolo_results:
+        bbox = result["bbox"]
+        x1, y1, x2, y2 = bbox
+        cv2.rectangle(img_bgr, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+        cv2.putText(img_bgr, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    # save the image
+    logger.warning("Saving image to %s", img_path)
+    cv2.imwrite(img_path, img_bgr)
+
+    msg = {
+        "clientID": frame.client_id,
+        "type": "objectDetections",
+        "content": {
+            "objectLabels": object_labels,
+            "objectCenters": object_centers
+        },
+        "imageWidth": frame.img.shape[1],
+        "imageHeight": frame.img.shape[0],
+        "timestamp": frame.timestamp,
+        "extrinsics": frame.cam_mat.flatten().tolist(),
+        "instrinsics": frame.proj_mat.flatten().tolist(),
+        "distortion": frame.dist_mat.flatten().tolist()
+    }
+    msg_queue.put(msg)
 
 def run_server(args):
     # SSL Setup
@@ -411,8 +423,11 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=8000, help='Port to bind to')
     parser.add_argument('--no-ssl', action='store_true', help='Disable SSL')
     parser.add_argument('--pem', default='server.pem', help='Path to SSL certificate')
-
+    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
     args = parser.parse_args()
+
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
 
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
