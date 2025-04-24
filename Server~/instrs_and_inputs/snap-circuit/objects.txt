@@ -8,10 +8,10 @@ speaker
 photo-res
 light
 switch
-3-connector
-2-connector
-2-connector
-2-connector
-1-connector
-2-connector
+3-connection
+2-connection
+2-connection
+2-connection
+1-connection
+2-connection
 
