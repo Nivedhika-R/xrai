@@ -26,7 +26,7 @@ public class XAIRClient : Singleton<XAIRClient>
     private TriangleMeshing _meshManager;
 
     [SerializeField]
-    private TextMeshProUGUI LLMResponseText = null;
+    private TextMeshPro LLMResponseText = null;
     private float _sendImagetimer = 0.0f;
     [SerializeField]
     private float _sendImageFreqHz = 0.2f;
