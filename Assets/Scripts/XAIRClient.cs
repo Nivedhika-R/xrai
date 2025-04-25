@@ -39,8 +39,9 @@ public class XAIRClient : Singleton<XAIRClient>
 
     public Action<bool, string> OnWebRTCConnectionChanged;
 
-    private readonly List<GameObject> activeTextObjects = new();
+    private readonly List<GameObject> activeObjects = new();
 
+    private Material transparentMat;
 
     public static Matrix4x4 StringToMatrix(string matrixStr)
     {
@@ -76,6 +77,13 @@ public class XAIRClient : Singleton<XAIRClient>
             marker.transform.localPosition = new Vector3(0.0f, 1.6f, 0.0f);
             marker.transform.localScale = new Vector3(0.02f, 0.02f, 0.02f);
         }
+
+        transparentMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        transparentMat.SetFloat("_Surface", 1); // 1 = Transparent, 0 = Opaque
+        transparentMat.SetFloat("_ZWrite", 0);  // Disable ZWrite for transparency
+        transparentMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        transparentMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        transparentMat.color = new Color(1f, 0f, 0f, 0.75f); // semi-transparent
 
         WebRTCController.Instance.OnWebRTCConnectionStateChange += OnWebRTCConnectionStateChanged;
         WebRTCController.Instance.OnDataChannelMessageReceived += OnDataChannelMessageReceived;
@@ -154,9 +162,6 @@ public class XAIRClient : Singleton<XAIRClient>
             else
             if (msgType == "objectDetections") {
                 // parse json
-                string clientID = jsonObj["clientID"].ToString();
-                string timestamp = jsonObj["timestamp"].ToString();
-
                 uint imageWidth = uint.Parse(jsonObj["imageWidth"].ToString());
                 uint imageHeight = uint.Parse(jsonObj["imageHeight"].ToString());
                 Vector2 imageDimensions = new(imageWidth, imageHeight);
@@ -199,11 +204,11 @@ public class XAIRClient : Singleton<XAIRClient>
                 }
 
                 // destroy old text objects
-                for (int i = 0; i < activeTextObjects.Count; i++)
+                for (int i = 0; i < activeObjects.Count; i++)
                 {
-                    Destroy(activeTextObjects[i]);
+                    Destroy(activeObjects[i]);
                 }
-                activeTextObjects.Clear();
+                activeObjects.Clear();
 
                 // project object centers (image space) into world space
                 for (int i = 0; i < objectCenters.Count; i++)
@@ -214,21 +219,28 @@ public class XAIRClient : Singleton<XAIRClient>
                     {
                         GameObject textObject = new("LabelText");
                         textObject.transform.localScale = new Vector3(0.125f, 0.125f, 0.125f);
-                        textObject.transform.position = hitPoint;
+                        textObject.transform.position = hitPoint + new Vector3(0.0f, -0.015f, 0.0f);
 
                         TextMesh textMesh = textObject.AddComponent<TextMesh>();
                         textMesh.text = $"{objectLabel} ({objectConfidences[i]:0.00})";
                         textMesh.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-                        textMesh.fontSize = 250;
+                        textMesh.fontSize = 90;
                         textMesh.characterSize = 0.01f;
-                        textMesh.color = Color.green;
+                        textMesh.color = new Color(1f, 0f, 0f, 0.75f);
                         textMesh.alignment = TextAlignment.Center;
                         textMesh.anchor = TextAnchor.MiddleCenter;
 
                         textObject.transform.LookAt(Camera.main.transform);
                         textObject.transform.Rotate(0, 180, 0);
+                        activeObjects.Add(textObject);
 
-                        activeTextObjects.Add(textObject);
+                        // make a transparent sphere at the hit point
+                        GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                        marker.name = objectLabel;
+                        marker.transform.localPosition = hitPoint;
+                        marker.transform.localScale = new Vector3(0.0075f, 0.0075f, 0.0075f);
+                        marker.GetComponent<Renderer>().material = transparentMat;
+                        activeObjects.Add(marker);
 
                         if (enableDebug) {
                             Vector3 cameraPositionWorld = cameraToWorldMatrix.GetColumn(3);

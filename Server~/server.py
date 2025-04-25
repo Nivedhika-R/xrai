@@ -24,7 +24,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from constants import *
 from logger import logger
 from chatgpt_helper import ChatGPTHelper
-from whisper_helper import RemoteAudioToWhisper
+# from whisper_helper import RemoteAudioToWhisper
 from yolo_helper import YoloHelper
 from preview import Preview
 from frame import Frame
@@ -45,9 +45,10 @@ frame_deque = deque()
 
 chatgpt = ChatGPTHelper()
 yolo = YoloHelper("./best.pt")
-tutorial_follower = TutorialFollower(frame_deque, yolo=yolo)
 # yolo = YoloHelper("yolo11n.pt")
+tutorial_follower = TutorialFollower(frame_deque, yolo=yolo)
 preview = Preview()
+
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -349,10 +350,10 @@ def handle_images():
                 if frame.img is None:
                     break
                 run_object_detection(frame) # run YOLO
-                run_ask_chatgpt("how many fingers am i holding up.", frame) # ask ChatGPT
+                run_ask_chatgpt("What am I looking at?", frame) # ask ChatGPT
         except Exception as e:
-            logger.error("Video processing stopped: %s", e)
-            break
+            logger.error(f"handle_images encountered an error: {e}")
+            continue
 
 def run_ask_chatgpt(query, frame):
     # ask ChatGPT
@@ -363,7 +364,7 @@ def run_ask_chatgpt(query, frame):
         "content": llm_reply,
         "timestamp": frame.timestamp
     }
-    print(llm_reply)
+    logger.info(llm_reply)
     msg_queue.put(msg)
     preview.addReply(llm_reply)
 
@@ -372,7 +373,7 @@ def ask_tutorial(frame):
     if tutorial_answer is None:
         return
 
-    print(tutorial_answer)
+    logger.info(tutorial_answer)
 
     llm_reply = tutorial_answer
     tutorial_follower.clear_answer()
