@@ -1,7 +1,9 @@
+import re
 import time
 import numpy as np
 import cv2
 from frame import Frame
+from logger import logger
 
 from chatgpt_helper import ChatGPTHelper
 
@@ -40,9 +42,9 @@ class TutorialFollower:
         sample_image = cv2.cvtColor(sample_image, cv2.COLOR_BGR2RGB)
         frame_temp = Frame(1, sample_image, None, None, None, time.time())
         frames.append(frame_temp)
-        
+
         ans = self.chat_gpt.ask(prompt, frames)
-        print("Answer from ChatGPT:", ans)
+        logger.info("Answer from ChatGPT: " + ans)
         return ans
 
     def load_instructions(self, instruction_file, objects_file):
@@ -63,10 +65,10 @@ class TutorialFollower:
     def start(self):
         self.load_instructions(f"{self.instructions_path}/{self.task}/instructions.txt", f"{self.instructions_path}/{self.task}/objects.txt")
 
-        print("Instructions:")
+        logger.info("Instructions:")
         for instruction in self.instructions:
-            print("-", instruction)
-            print("  - Objects:", self.all_objects[instruction])
+            logger.info(f"- {instruction}")
+            logger.info(f"  - Objects: {self.all_objects[instruction]}")
 
         self.current_instruction = self.instructions[0]
         self.start_following()
@@ -75,6 +77,7 @@ class TutorialFollower:
         while True:
             while len(self.frame_deque) < 2:
                 time.sleep(0.1)
+
             self.latest_frames = []
             self.latest_frames.append(self.frame_deque[-2])
             self.latest_frames.append(self.run_object_detection(self.frame_deque[-1]))
@@ -98,8 +101,24 @@ class TutorialFollower:
                 if  self.current_instruction_index < self.prev_instruction_index:
                     self.current_instruction_index = self.prev_instruction_index
 
+                match = re.match(r'^(True|False)[\s,\.]*(.*)', answer.strip())
+                if match:
+                    first_part, rest = match.groups()
+                    current_instruction_state = (first_part == "True")
+                    # capitalize first letter
+                    final_part = rest.strip()
+                    if final_part:
+                        final_part = final_part[0].upper() + final_part[1:]
+                else:
+                    # fallback
+                    current_instruction_state = False
+                    final_part = answer.strip().capitalize()
+
                 self.current_instruction = self.instructions[self.current_instruction_index]
-                self.answer = self.current_instruction + '\n Current instruction state: ' + answer
+                self.answer = ("Step completed!" if current_instruction_state else "Step not completed yet.") + "\n\n" + \
+                              "Current Step: " + self.current_instruction + "\n\n" + \
+                              "Feedback: " + "\"" + final_part + "\""
+
                 # if (self.prev_instruction_index != self.current_instruction_index) or self.current_instruction_index == 0:
                 #     ferret_prompt = "Find the following object for me. Give me an answer as a comma separated list with the format: object name = <co-ordinates>, object name:<co-ordinates>. If you cannot find a certain object with confidence, replace its coordinates with None. Do not give me more coordinates than I have asked for. Only give me coordinated for the objects I asked. The objects are: " + str(self.inst_inputs[self.current_instruction_index])
                 #     response = self.ferret_gpt.ask_llms(ferret_prompt, "", frame_imgs[-1], None, None)
@@ -112,27 +131,19 @@ class TutorialFollower:
 
     def clear_answer(self):
         self.answer = None
-        
-        
+
     def run_object_detection(self, frame):
         object_labels = []
         object_centers = []
         object_confidences = []
         yolo_results = self.yolo.predict(frame.img)
         display_labels = {'1-connection': "1 connector", '2-connection': "2 connector", '3-connection': "3 connector", '4-connection': "4 connector", '5-connection': "5 connector", '6-connection': "6 connector", 'alarm': "Alarm", 'battery': "Battery", 'light': "LED Light", 'music': "Music", 'photo-res': "Photo Resistor", 'switch': "Switch"}
-        # for result in yolo_results:
-        #     object_labels.append(display_labels[result["class_name"]])
-        #     bbox = result["bbox"]
-        #     x1, y1, x2, y2 = bbox
-        #     center_x = (x1 + x2) / 2
-        #     center_y = (y1 + y2) / 2
-        #     object_centers.append((center_x, frame.img.shape[0] - center_y))
-        #     object_confidences.append(result["confidence"])
 
         # # save image to disk (to debug)
         # os.makedirs("images", exist_ok=True)
         # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
-        # # draw bounding boxes
+
+        # draw bounding boxes
         frame_copy = Frame(frame.client_id, frame.img.copy(), frame.cam_mat, frame.proj_mat, frame.dist_mat, time.time())
         for result in yolo_results:
             if result["class_name"] not in self.get_current_objects():
@@ -144,4 +155,4 @@ class TutorialFollower:
         # save the image
         cv2.imwrite("yolo.png", frame_copy.img)
         return frame_copy
-        
+

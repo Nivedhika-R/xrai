@@ -24,7 +24,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from constants import *
 from logger import logger
 from chatgpt_helper import ChatGPTHelper
-from whisper_helper import RemoteAudioToWhisper
+# from whisper_helper import RemoteAudioToWhisper
 from yolo_helper import YoloHelper
 from preview import Preview
 from frame import Frame
@@ -44,10 +44,10 @@ msg_queue = Queue()
 frame_deque = deque()
 
 chatgpt = ChatGPTHelper()
-yolo = YoloHelper("./best.pt")
-tutorial_follower = TutorialFollower(frame_deque, yolo=yolo)
-# yolo = YoloHelper("yolo11n.pt")
+yolo = None
+tutorial_follower = None
 preview = Preview()
+
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -349,10 +349,10 @@ def handle_images():
                 if frame.img is None:
                     break
                 run_object_detection(frame) # run YOLO
-                run_ask_chatgpt("what color is this.", frame) # ask ChatGPT
+                run_ask_chatgpt("What am I looking at?", frame) # ask ChatGPT
         except Exception as e:
-            logger.error("Video processing stopped: %s", e)
-            break
+            logger.error(f"handle_images encountered an error: {e}")
+            continue
 
 def run_ask_chatgpt(query, frame):
     # ask ChatGPT
@@ -363,6 +363,7 @@ def run_ask_chatgpt(query, frame):
         "content": llm_reply,
         "timestamp": frame.timestamp
     }
+    logger.info(llm_reply)
     msg_queue.put(msg)
     preview.addReply(llm_reply)
 
@@ -371,7 +372,7 @@ def ask_tutorial(frame):
     if tutorial_answer is None:
         return
 
-    print(tutorial_answer)
+    logger.info(tutorial_answer)
 
     llm_reply = tutorial_answer
     tutorial_follower.clear_answer()
@@ -409,13 +410,13 @@ def run_object_detection(frame):
     #     x1, y1, x2, y2 = bbox
     #     cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
     #     cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-    
+
     # # save the image
     # logger.warning("Saving image to %s", img_path)
     # cv2.imwrite(img_path, frame.img)
 
-    if len(object_labels) == 0:
-        return
+    # if len(object_labels) == 0:
+    #     return
 
     msg = {
         "clientID": frame.client_id,
@@ -434,8 +435,6 @@ def run_object_detection(frame):
     }
     msg_queue.put(msg)
     preview.addImg(frame.img, yolo_results, frame.timestamp, frame.client_id)
-
-
 
 def run_server(args):
     # SSL Setup
@@ -466,12 +465,24 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=8000, help='Port to bind to')
     parser.add_argument('--no-ssl', action='store_true', help='Disable SSL')
     parser.add_argument('--pem', default='server.pem', help='Path to SSL certificate')
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('-v', '--verbosity', type=int, default=2,
+                        help='Set log level (0: ERROR, 1: WARNING, 2: INFO, 3: DEBUG)')
     parser.add_argument('--instruct', action='store_true', help='Enable instruction following')
+    parser.add_argument('--yolo-model', default='best.pt', help='Path to YOLO model')
     args = parser.parse_args()
 
-    if args.debug:
-        logger.setLevel(logging.DEBUG)
+    verbosity_map = {
+        0: logging.ERROR,
+        1: logging.WARNING,
+        2: logging.INFO,
+        3: logging.DEBUG,
+    }
+    log_level = verbosity_map.get(args.verbosity, logging.DEBUG)
+    logger.setLevel(log_level)
+
+    yolo = YoloHelper(args.yolo_model)
+    if args.instruct:
+        tutorial_follower = TutorialFollower(frame_deque, yolo=yolo)
 
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)

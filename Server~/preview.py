@@ -11,6 +11,7 @@ class Preview:
       self.llm_reply = None
       self.client_id = None
       self.imageCounter = 0
+      self.display_labels = {'1-connection': "1 connector", '2-connection': "2 connector", '3-connection': "3 connector", '4-connection': "4 connector", '5-connection': "5 connector", '6-connection': "6 connector", 'alarm': "Alarm", 'battery': "Battery", 'light': "LED Light", 'music': "Music", 'photo-res': "Photo Resistor", 'switch': "Switch"}
     
     def fit_text_in_two_lines(self, img, text, margin = 20):
       font=cv2.FONT_HERSHEY_SIMPLEX
@@ -68,7 +69,7 @@ class Preview:
       return img
 
     def addImg(self, img, yolo_results, timestamp, client_id):
-      self.img = img
+      self.img = img.copy()
       self.yolo_results = yolo_results
       self.timestamp = timestamp
       self.client_id = client_id
@@ -84,9 +85,7 @@ class Preview:
         return
 
       # save image to disk
-      os.makedirs("images", exist_ok=True)
-      img_path = os.path.join("images", f"image_c{self.client_id}_{self.timestamp}_{self.imageCounter}.png")
-      # img_bgr = cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR)
+      img_path = "preview.jpg"
       self.imageCounter += 1
       width = self.img.shape[1]
       height = self.img.shape[0]
@@ -96,19 +95,13 @@ class Preview:
           bbox = result["bbox"]
           x1, y1, x2, y2 = bbox
           cv2.rectangle(self.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-          cv2.putText(self.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+          cv2.putText(self.img, self.display_labels[result["class_name"]],
+                      (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
       
       # show llm content
       blank = np.zeros(shape=(100, width, 3), dtype=np.int16)
       combined = self.img
       if(self.llm_reply is not None):
         llm_img = self.fit_text_in_two_lines(blank, self.llm_reply)
-
-        # TODO: also want to add instructions on the right
-
         combined = np.concatenate((self.img, llm_img), axis=0) # axis = 0 for vertical, 1 for horizontal 
       cv2.imwrite(img_path, combined)
-
-      # render photo dynamically in popup (this doesn't work on nunga)
-      # cv2.imshow("Dynamic Image", combined)
-      # ^ TODO: can do this in a separate script/client, running parallel to main
