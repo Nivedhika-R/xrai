@@ -77,6 +77,7 @@ class TutorialFollower:
         while True:
             while len(self.frame_deque) < 2:
                 time.sleep(0.1)
+
             self.latest_frames = []
             self.latest_frames.append(self.frame_deque[-2])
             self.latest_frames.append(self.run_object_detection(self.frame_deque[-1]))
@@ -131,26 +132,18 @@ class TutorialFollower:
     def clear_answer(self):
         self.answer = None
 
-
     def run_object_detection(self, frame):
         object_labels = []
         object_centers = []
         object_confidences = []
         yolo_results = self.yolo.predict(frame.img)
         display_labels = {'1-connection': "1 connector", '2-connection': "2 connector", '3-connection': "3 connector", '4-connection': "4 connector", '5-connection': "5 connector", '6-connection': "6 connector", 'alarm': "Alarm", 'battery': "Battery", 'light': "LED Light", 'music': "Music", 'photo-res': "Photo Resistor", 'switch': "Switch"}
-        # for result in yolo_results:
-        #     object_labels.append(display_labels[result["class_name"]])
-        #     bbox = result["bbox"]
-        #     x1, y1, x2, y2 = bbox
-        #     center_x = (x1 + x2) / 2
-        #     center_y = (y1 + y2) / 2
-        #     object_centers.append((center_x, frame.img.shape[0] - center_y))
-        #     object_confidences.append(result["confidence"])
 
         # # save image to disk (to debug)
         # os.makedirs("images", exist_ok=True)
         # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
-        # # draw bounding boxes
+
+        # draw bounding boxes
         frame_copy = Frame(frame.client_id, frame.img.copy(), frame.cam_mat, frame.proj_mat, frame.dist_mat, time.time())
         for result in yolo_results:
             if result["class_name"] not in self.get_current_objects():

@@ -44,9 +44,8 @@ msg_queue = Queue()
 frame_deque = deque()
 
 chatgpt = ChatGPTHelper()
-yolo = YoloHelper("./best.pt")
-# yolo = YoloHelper("yolo11n.pt")
-tutorial_follower = TutorialFollower(frame_deque, yolo=yolo)
+yolo = None
+tutorial_follower = None
 preview = Preview()
 
 
@@ -466,12 +465,24 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=8000, help='Port to bind to')
     parser.add_argument('--no-ssl', action='store_true', help='Disable SSL')
     parser.add_argument('--pem', default='server.pem', help='Path to SSL certificate')
-    parser.add_argument('--debug', action='store_true', help='Enable debug mode')
+    parser.add_argument('-v', '--verbosity', type=int, default=2,
+                        help='Set log level (0: ERROR, 1: WARNING, 2: INFO, 3: DEBUG)')
     parser.add_argument('--instruct', action='store_true', help='Enable instruction following')
+    parser.add_argument('--yolo-model', default='best.pt', help='Path to YOLO model')
     args = parser.parse_args()
 
-    if args.debug:
-        logger.setLevel(logging.DEBUG)
+    verbosity_map = {
+        0: logging.ERROR,
+        1: logging.WARNING,
+        2: logging.INFO,
+        3: logging.DEBUG,
+    }
+    log_level = verbosity_map.get(args.verbosity, logging.DEBUG)
+    logger.setLevel(log_level)
+
+    yolo = YoloHelper(args.yolo_model)
+    if args.instruct:
+        tutorial_follower = TutorialFollower(frame_deque, yolo=yolo)
 
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
