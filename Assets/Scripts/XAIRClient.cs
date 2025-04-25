@@ -10,7 +10,7 @@ public class XAIRClient : Singleton<XAIRClient>
 {
     [Header("Server Settings")]
     [SerializeField]
-    private string ipAddress = "0.0.0.0";
+    private string ipAddress = "12.0.0.1";
     [SerializeField]
     private string port = "8000";
     [SerializeField]
