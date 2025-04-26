@@ -16,7 +16,6 @@ from PIL import Image, ImageEnhance
 from io import BytesIO
 
 import numpy as np
-import gradio as gr
 
 from collections import defaultdict
 from aiohttp import web
@@ -307,7 +306,7 @@ async def post_image(request):
 
         frame_deque.append(Frame(client_id, image_rgb, cam_mat, proj_mat, dist_mat, timestamp))
 
-        # logger.info("Received image from client %s", client_id)
+        logger.debug("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
 
     except Exception as e:
@@ -447,7 +446,7 @@ def run_object_detection(frame):
         x1, y1, x2, y2 = bbox
         center_x = (x1 + x2) / 2
         center_y = (y1 + y2) / 2
-        object_centers.append((center_x, frame.img.shape[0] - center_y + 72))
+        object_centers.append((center_x, frame.img.shape[0] - center_y + 71)) # added the +71 bc hit testing results seemed to be off a little
         object_confidences.append(result["confidence"])
 
     # # save image to disk (to debug)

@@ -1,12 +1,12 @@
-import gradio as gr
 import requests
 import numpy as np
 import cv2
 import base64
-from io import BytesIO
-from PIL import Image
 import time
 import argparse
+
+from PIL import Image
+import gradio as gr
 
 
 def fetch_latest_frame():

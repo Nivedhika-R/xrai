@@ -174,13 +174,15 @@ public class MagicLeapCameraManager : MonoBehaviour, ICameraDeviceManager
 
         var captureConfig = CreateCaptureConfig(streamCapability);
         var prepareResult = _captureCamera.PrepareCapture(captureConfig, out _);
-
         if (!MLResult.DidNativeCallSucceed(prepareResult.Result, nameof(_captureCamera.PrepareCapture)))
         {
             Debug.LogError($"Could not prepare capture. Result: {prepareResult.Result}. Disconnecting Camera.");
             await DisconnectCameraAsync();
             return false;
         }
+
+        // Trigger automatic exposure and white balance
+        await _captureCamera.PreCaptureAEAWBAsync();
 
         Debug.Log("Starting Video Capture.");
 

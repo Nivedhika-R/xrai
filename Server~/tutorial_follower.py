@@ -36,11 +36,11 @@ class TutorialFollower:
             self.additional_texts[self.current_instruction_index] + "\n" + \
             "Here is the complete list of instructions: " \
             + str(self.instructions) + "\n" + \
-            "I am giving you four images (images may be a bit blurry): " + \
+            "I am giving you four images (images may be a bit blurry and have some glare): " + \
             "The first image (with a black background), shows the current state of my environment from an ego-centric view. " + \
             "The second image is the same as the first image but with important objects labels. " + \
-            "The third imagea frame from a previous viewpoint. " + \
-            "The fourth image (with a wood background) is a sample image of the expected view of the instruction. " + \
+            "The third image is a frame from a previous viewpoint. " + \
+            "The fourth image is a sample image of the expected result of the instruction. " + \
             "ANSWER THIS QUESTION: Does it look like the current instruction has been done in the first image I sent? " + \
             "Be true with your answers, as each piece needs to be in the location the instruction says. " + \
             "If you see the full snap circuit transparent board and you think it is likely that the step is done, be lenient and say it is done. " + \
@@ -155,4 +155,3 @@ class TutorialFollower:
         # save the image for debugging
         cv2.imwrite("yolo.png", frame_bbox.img)
         return frame_bbox
-
