@@ -11,11 +11,13 @@ from threading import Thread
 from queue import Queue
 from collections import deque
 
+
 import cv2
 from PIL import Image
 from io import BytesIO
 
 import numpy as np
+import gradio as gr
 
 from collections import defaultdict
 from aiohttp import web
@@ -26,7 +28,6 @@ from logger import logger
 from chatgpt_helper import ChatGPTHelper
 # from whisper_helper import RemoteAudioToWhisper
 from yolo_helper import YoloHelper
-from preview import Preview
 from frame import Frame
 from tutorial_follower import TutorialFollower
 
@@ -46,7 +47,7 @@ frame_deque = deque()
 chatgpt = ChatGPTHelper()
 yolo = None
 tutorial_follower = None
-preview = Preview()
+llm_reply = None
 
 
 @web.middleware
@@ -58,6 +59,25 @@ async def cors_middleware(request, handler):
     response.headers["Access-Control-Allow-Methods"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
     return response
+
+# GET /latest-frame
+async def get_latest_frame(request):
+    global frame_deque
+    if len(frame_deque) == 0:
+        logger.info("in none")
+        return web.json_response({"image": None})
+
+    frame = frame_deque[-1]
+    logger.info("Sending latest frame to client %s", frame.client_id)
+    image_with_bboxes = draw_yolo_response(frame)
+    _, buffer = cv2.imencode('.jpg', image_with_bboxes)
+    frame_base64 = base64.b64encode(buffer).decode('utf-8')
+    return web.json_response({"image": frame_base64})
+
+# GET /llm-response
+async def get_llm_response(request):
+    global llm_reply
+    return web.json_response({"llm_response": llm_reply})
 
 # POST /login
 async def login(request):
@@ -345,7 +365,7 @@ def handle_images():
                     continue
 
                 frame = frame_deque[-1]
-                frame_deque.clear()
+                # frame_deque.clear()
                 if frame.img is None:
                     break
                 run_object_detection(frame) # run YOLO
@@ -355,6 +375,7 @@ def handle_images():
             continue
 
 def run_ask_chatgpt(query, frame):
+    global llm_reply
     # ask ChatGPT
     llm_reply = chatgpt.ask(query, image=frame.img)
     msg = {
@@ -365,9 +386,9 @@ def run_ask_chatgpt(query, frame):
     }
     logger.info(llm_reply)
     msg_queue.put(msg)
-    preview.addReply(llm_reply)
 
 def ask_tutorial(frame):
+    global llm_reply
     tutorial_answer = tutorial_follower.get_answer()
     if tutorial_answer is None:
         return
@@ -383,7 +404,31 @@ def ask_tutorial(frame):
         "timestamp": frame.timestamp,
     }
     msg_queue.put(msg)
-    preview.addReply(llm_reply)
+
+def draw_yolo_response(frame):
+    object_labels = []
+    object_centers = []
+    object_confidences = []
+    yolo_results = yolo.predict(frame.img)
+    for result in yolo_results:
+        if args.instruct and result["class_name"] not in tutorial_follower.get_current_objects():
+            continue
+        object_labels.append(result["class_name"])
+        bbox = result["bbox"]
+        x1, y1, x2, y2 = bbox
+        center_x = (x1 + x2) / 2
+        center_y = (y1 + y2) / 2
+        object_centers.append((center_x, frame.img.shape[0] - center_y))
+        object_confidences.append(result["confidence"])
+        
+    frame_img = frame.img.copy()
+    for result in yolo_results:
+        bbox = result["bbox"]
+        x1, y1, x2, y2 = bbox
+        cv2.rectangle(frame_img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+        cv2.putText(frame_img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    
+    return frame_img
 
 def run_object_detection(frame):
     object_labels = []
@@ -400,7 +445,7 @@ def run_object_detection(frame):
         center_y = (y1 + y2) / 2
         object_centers.append((center_x, frame.img.shape[0] - center_y))
         object_confidences.append(result["confidence"])
-
+    
     # # save image to disk (to debug)
     # os.makedirs("images", exist_ok=True)
     # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
@@ -434,7 +479,6 @@ def run_object_detection(frame):
         "distortion": frame.dist_mat.flatten().tolist()
     }
     msg_queue.put(msg)
-    preview.addImg(frame.img, yolo_results, frame.timestamp, frame.client_id)
 
 def run_server(args):
     # SSL Setup
@@ -454,6 +498,8 @@ def run_server(args):
     app.router.add_get("/offers", get_offers)
     app.router.add_get("/answers", get_answers)
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
+    app.router.add_get("/latest-frame", get_latest_frame) 
+    app.router.add_get("/llm-response", get_llm_response)
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
 
@@ -492,5 +538,4 @@ if __name__ == "__main__":
     if args.instruct:
         tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
         tutorial_thread.start()
-
     run_server(args)

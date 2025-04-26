@@ -1,107 +1,70 @@
-from PIL import Image, ImageDraw, ImageFont
-import os
+import gradio as gr
+import requests
 import numpy as np
 import cv2
+import base64
+from io import BytesIO
+from PIL import Image
+import time
+import argparse
 
-class Preview:
-    def __init__(self):
-      self.img = None
-      self.yolo_results = None
-      self.timestamp = None
-      self.llm_reply = None
-      self.client_id = None
-      self.imageCounter = 0
-      self.display_labels = {'1-connection': "1 connector", '2-connection': "2 connector", '3-connection': "3 connector", '4-connection': "4 connector", '5-connection': "5 connector", '6-connection': "6 connector", 'alarm': "Alarm", 'battery': "Battery", 'light': "LED Light", 'music': "Music", 'photo-res': "Photo Resistor", 'switch': "Switch"}
+
+def fetch_latest_frame():
+    try:
+        response = requests.get(f"{SERVER_URL}/latest-frame", verify=VERIFY_SSL)
+        data = response.json()
+        img_base64 = data.get("image")
+        if img_base64 is None:
+            return None
+        
+        img_bytes = base64.b64decode(img_base64)
+        img_np = np.frombuffer(img_bytes, np.uint8)
+        img_cv2 = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
+        img_rgb = cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB)
+        
+        return Image.fromarray(img_rgb)
+    except Exception as e:
+        print(f"Failed to fetch frame: {e}")
+        return None
+
+def fetch_latest_text():
+    try:
+        response = requests.get(f"{SERVER_URL}/llm-response", verify=VERIFY_SSL)
+        data = response.json()
+        text = data.get("llm_response")
+        if text is None:
+                return None
+        return text
+    except Exception as e:
+        print(f"Failed to fetch text: {e}")
+        return None
+
+def live_stream():
+    while True:
+        frame = fetch_latest_frame()
+        text = fetch_latest_text()
+        if frame is not None and text is not None:
+            yield frame, text
+        elif frame is not None:
+            yield frame, None
+        elif text is not None:
+            yield None, text
+        else:
+            yield None, None
+        time.sleep(1)  # Poll every 100ms
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="XaiR Preview Window.")
+    parser.add_argument('--ip', default='127.0.0.1', help='IP address to bind to')
+    args = parser.parse_args()
     
-    def fit_text_in_two_lines(self, img, text, margin = 20):
-      font=cv2.FONT_HERSHEY_SIMPLEX
-      color=(255, 255, 255)
-      thickness=2
-
-      # Get image dimensions
-      h, w = img.shape[:2]
-      available_width = w - 2 * margin
-      available_height = h - 2 * margin
-      
-      # Split text into two roughly equal parts at the middle
-      words = text.split()
-      middle_idx = len(words) // 2
-      line1 = ' '.join(words[:middle_idx])
-      line2 = ' '.join(words[middle_idx:])
-      
-      # Find the maximum font scale that allows both lines to fit
-      max_scale = 0.1
-      for scale in np.arange(0.1, 10.0, 0.1):
-          # Get text sizes
-          line1_size = cv2.getTextSize(line1, font, scale, thickness)[0]
-          line2_size = cv2.getTextSize(line2, font, scale, thickness)[0]
-          
-          # Check if width fits
-          if line1_size[0] > available_width or line2_size[0] > available_width:
-              max_scale = scale - 0.1
-              break
-              
-          # Check if height fits (two lines plus spacing)
-          line_height = max(line1_size[1], line2_size[1])
-          if 2 * line_height > available_height:
-              max_scale = scale - 0.1
-              break
-              
-          max_scale = scale
-      
-      # Get final sizes with the selected scale
-      line1_size = cv2.getTextSize(line1, font, max_scale, thickness)[0]
-      line2_size = cv2.getTextSize(line2, font, max_scale, thickness)[0]
-      line_height = max(line1_size[1], line2_size[1])
-      
-      # Calculate positions to center text
-      x1 = (w - line1_size[0]) // 2
-      x2 = (w - line2_size[0]) // 2
-      
-      y_center = h // 2
-      y1 = y_center - line_height // 2
-      y2 = y_center + line_height + 10  # Add spacing between lines
-      
-      # Draw text
-      cv2.putText(img, line1, (x1, y1), font, max_scale, color, thickness)
-      cv2.putText(img, line2, (x2, y2), font, max_scale, color, thickness)
-      
-      return img
-
-    def addImg(self, img, yolo_results, timestamp, client_id):
-      self.img = img.copy()
-      self.yolo_results = yolo_results
-      self.timestamp = timestamp
-      self.client_id = client_id
-      self.render()
+    SERVER_URL = f"https://{args.ip}:8000"  # Or http://localhost:8000 if no SSL
+    VERIFY_SSL = False  # Set to False if using self-signed certs
     
-    def addReply(self, llm_reply):
-      self.llm_reply = llm_reply
-      self.render()
-
-    # preview.render(img, yolo_results, timestamp, llm_reply, client_id)
-    def render(self):
-      if(self.img is None):
-        return
-
-      # save image to disk
-      img_path = "preview.jpg"
-      self.imageCounter += 1
-      width = self.img.shape[1]
-      height = self.img.shape[0]
-
-      # draw bounding boxes
-      for result in self.yolo_results:
-          bbox = result["bbox"]
-          x1, y1, x2, y2 = bbox
-          cv2.rectangle(self.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-          cv2.putText(self.img, self.display_labels[result["class_name"]],
-                      (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-      
-      # show llm content
-      blank = np.zeros(shape=(100, width, 3), dtype=np.int16)
-      combined = self.img
-      if(self.llm_reply is not None):
-        llm_img = self.fit_text_in_two_lines(blank, self.llm_reply)
-        combined = np.concatenate((self.img, llm_img), axis=0) # axis = 0 for vertical, 1 for horizontal 
-      cv2.imwrite(img_path, combined)
+    with gr.Blocks() as demo:
+                    image_display = gr.Image(type="pil")
+                    text_display = gr.Textbox(label="LLM Response", lines=2, max_lines=5, interactive=False)
+                    
+                    demo.load(live_stream, [], [image_display, text_display])
+    demo.queue()
+    demo.launch(server_name="0.0.0.0", server_port=7861, share=False)
