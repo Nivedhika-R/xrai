@@ -26,6 +26,9 @@ public class XAIRClient : Singleton<XAIRClient>
     private TriangleMeshing _meshManager;
 
     [SerializeField]
+    private AudioSource dingSource;
+
+    [SerializeField]
     private TextMeshPro LLMResponseText = null;
     private float _sendImagetimer = 0.0f;
     [SerializeField]
@@ -83,7 +86,7 @@ public class XAIRClient : Singleton<XAIRClient>
         transparentMat.SetFloat("_ZWrite", 0);  // Disable ZWrite for transparency
         transparentMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
         transparentMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
-        transparentMat.color = new Color(1f, 0f, 0f, 0.75f); // semi-transparent
+        transparentMat.color = new Color(1f, 0f, 0f, 0.9f); // semi-transparent
 
         WebRTCController.Instance.OnWebRTCConnectionStateChange += OnWebRTCConnectionStateChanged;
         WebRTCController.Instance.OnDataChannelMessageReceived += OnDataChannelMessageReceived;
@@ -106,15 +109,22 @@ public class XAIRClient : Singleton<XAIRClient>
             _sendImagetimer = 0.0f;
             _mediaManager.GetImage(
                 (cameraToWorldMatrix, instrinsics, distortion, imageBytes) =>
+                {
+                    if (imageBytes != null)
                     {
-                        if (imageBytes != null)
-                        {
-                            // offset y coordinate by 1.6
-                            // cameraToWorldMatrix.m13 += 1.6f;
-                            // send image to server
-                            _serverCommunication.SendImage(imageBytes, cameraToWorldMatrix, instrinsics, distortion);
-                        }
-                    }, png: false);
+                        // send image to server
+                        _serverCommunication.SendImage(imageBytes, cameraToWorldMatrix, instrinsics, distortion);
+                    }
+                },
+                png: false
+            );
+        }
+    }
+
+    private void PlayDing() {
+        if (dingSource != null)
+        {
+            dingSource.Play();
         }
     }
 
@@ -156,7 +166,13 @@ public class XAIRClient : Singleton<XAIRClient>
             else
             if (msgType == "LLMReply")
             {
-                string llmReply = jsonObj["content"].ToString();
+                var content = jsonObj["content"] as JsonObject;
+                string llmReply = content["reply"].ToString();
+                bool stepCompleted = bool.Parse(content["stepCompleted"].ToString());
+                if (stepCompleted)
+                {
+                    PlayDing();
+                }
                 UpdateLLMResponseText(llmReply);
             }
             else
@@ -226,7 +242,7 @@ public class XAIRClient : Singleton<XAIRClient>
                         textMesh.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
                         textMesh.fontSize = 90;
                         textMesh.characterSize = 0.01f;
-                        textMesh.color = new Color(1f, 0f, 0f, 0.75f);
+                        textMesh.color = new Color(1f, 0f, 0f, 0.9f);
                         textMesh.alignment = TextAlignment.Center;
                         textMesh.anchor = TextAnchor.MiddleCenter;
 

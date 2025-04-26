@@ -1,0 +1,87 @@
+[
+    {
+        "instruction": "Place the transparent board so that the long side is facing you.",
+        "additional_text": "The board is transparent white and has a hexagonal grid pattern.",
+        "objects": []
+    },
+    {
+        "instruction": "Place a 5-connection from F2 to F6 horizontally.",
+        "additional_text": "The 5-connection is blue with 5 silver pins. It has the label '5' on it.",
+        "objects": ["5-connection"]
+    },
+    {
+        "instruction": "Place a 4-connection from B9 to E9 vertically.",
+        "additional_text": "The 4-connection is blue with 4 silver pins. It has the label '4' on it. Ensure this component is properly detected on the board.",
+        "objects": ["4-connection"]
+    },
+    {
+        "instruction": "Place a 6-connection from B2 to B7 horizontally.",
+        "additional_text": "The 6-connection is blue with 6 silver pins. It has the label '6' on it. Confirm that this component is present on the board.",
+        "objects": ["6-connection"]
+    },
+    {
+        "instruction": "Place the Batteries (B1) from F7 to F9, with the batteries facing you.",
+        "additional_text": "The batteries are transparent white with orange and grey batteries. They have 'B1', '3V', and a red circuit power symbol.",
+        "objects": ["battery"]
+    },
+    {
+        "instruction": "Place the Music IC (U1) from E2 to E4.",
+        "additional_text": "The Music IC is blue and has 'U1' and 'Music IC' on it.",
+        "objects": ["music"]
+    },
+    {
+        "instruction": "Place the Speaker (SP) from E5 to E7.",
+        "additional_text": "The speaker is red with a circular speaker and white base. It has 'SP' on it.",
+        "objects": ["speaker"]
+    },
+    {
+        "instruction": "Place the Photo Resistor (RP) from B4 to D4.",
+        "additional_text": "The photoresistor is transparent with a red line and a black cylinder. It has a tiny 'RP' on it. It should be connecting the Music IC and the 6-connection.",
+        "objects": ["photo-res"]
+    },
+    {
+        "instruction": "Place the Red LED (D1) from E7 to E9. Make sure the plus is on the right and the D1 is on the left!",
+        "additional_text": "The LED is red with a red LED and a white base. It has 'D1' on it. The D1 should be upside down and on the left!",
+        "objects": ["light"]
+    },
+    {
+        "instruction": "Place the Switch (S1) from B7 to B9.",
+        "additional_text": "The switch is green with a white base. It has 'S1' on it.",
+        "objects": ["switch"]
+    },
+    {
+        "instruction": "Place a 3-connection from B3 to D3.",
+        "additional_text": "The 3-connection is blue with 3 silver pins. It has the label '3' on it. It should be placed vertically, connecting the Music IC and the 6-connection.",
+        "objects": ["3-connection"]
+    },
+    {
+        "instruction": "Place a 2-connection from E4 to E5.",
+        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it.",
+        "objects": ["2-connection"]
+    },
+    {
+        "instruction": "Place a 2-connection from E2 to F2.",
+        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it.",
+        "objects": ["2-connection"]
+    },
+    {
+        "instruction": "Place a 2-connection from F6 to F7.",
+        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it.",
+        "objects": ["2-connection"]
+    },
+    {
+        "instruction": "Place a 1-connection on F9.",
+        "additional_text": "The 1-connection is blue with 1 silver pin. It has the label '1' on it. There should be a 1-connection next to the 'B1' of the batteries, close the the right most column next to 'F'. You always miss this one. Just make sure the 1-connection is on the right side of the batteries.",
+        "objects": ["1-connection"]
+    },
+    {
+        "instruction": "Place a 2-connection from F9 to E9.",
+        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it.",
+        "objects": ["2-connection"]
+    },
+    {
+        "instruction": "You're done! Turn on the Switch (S1) and cover the PhotoResistor (RP)!",
+        "additional_text": "",
+        "objects": []
+    }
+]

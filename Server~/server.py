@@ -11,9 +11,8 @@ from threading import Thread
 from queue import Queue
 from collections import deque
 
-
 import cv2
-from PIL import Image
+from PIL import Image, ImageEnhance
 from io import BytesIO
 
 import numpy as np
@@ -23,8 +22,8 @@ from collections import defaultdict
 from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 
-from constants import *
 from logger import logger
+from constants import *
 from chatgpt_helper import ChatGPTHelper
 # from whisper_helper import RemoteAudioToWhisper
 from yolo_helper import YoloHelper
@@ -301,6 +300,8 @@ async def post_image(request):
         # Decode base64 string
         image_bytes = base64.b64decode(base64_str)
         image = Image.open(BytesIO(image_bytes))
+        image = ImageEnhance.Brightness(image).enhance(0.9) # decrease brightness
+        image = ImageEnhance.Contrast(image).enhance(1.5) # increase contrast
         image_rgb = np.array(image)
         image_rgb = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
 
@@ -371,7 +372,7 @@ def handle_images():
                 run_object_detection(frame) # run YOLO
                 run_ask_chatgpt("What am I looking at?", frame) # ask ChatGPT
         except Exception as e:
-            logger.error(f"handle_images encountered an error: {e}")
+            logger.error(f"handle_images encountered an error: {e}", exc_info=True)
             continue
 
 def run_ask_chatgpt(query, frame):
@@ -400,7 +401,10 @@ def ask_tutorial(frame):
     msg = {
         "clientID": frame.client_id,
         "type": "LLMReply",
-        "content": llm_reply,
+        "content": {
+            "reply": llm_reply,
+            "stepCompleted": "step completed" in llm_reply.lower(),
+        },
         "timestamp": frame.timestamp,
     }
     msg_queue.put(msg)
@@ -420,14 +424,14 @@ def draw_yolo_response(frame):
         center_y = (y1 + y2) / 2
         object_centers.append((center_x, frame.img.shape[0] - center_y))
         object_confidences.append(result["confidence"])
-        
+
     frame_img = frame.img.copy()
     for result in yolo_results:
         bbox = result["bbox"]
         x1, y1, x2, y2 = bbox
         cv2.rectangle(frame_img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
         cv2.putText(frame_img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-    
+
     return frame_img
 
 def run_object_detection(frame):
@@ -436,16 +440,16 @@ def run_object_detection(frame):
     object_confidences = []
     yolo_results = yolo.predict(frame.img)
     for result in yolo_results:
-        if args.instruct and result["class_name"] not in tutorial_follower.get_current_objects():
+        if args.instruct and (result["class_name"] not in tutorial_follower.get_current_objects()):
             continue
-        object_labels.append(result["class_name"])
+        object_labels.append(display_labels[result["class_name"]])
         bbox = result["bbox"]
         x1, y1, x2, y2 = bbox
         center_x = (x1 + x2) / 2
         center_y = (y1 + y2) / 2
-        object_centers.append((center_x, frame.img.shape[0] - center_y))
+        object_centers.append((center_x, frame.img.shape[0] - center_y + 72))
         object_confidences.append(result["confidence"])
-    
+
     # # save image to disk (to debug)
     # os.makedirs("images", exist_ok=True)
     # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
@@ -498,7 +502,7 @@ def run_server(args):
     app.router.add_get("/offers", get_offers)
     app.router.add_get("/answers", get_answers)
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
-    app.router.add_get("/latest-frame", get_latest_frame) 
+    app.router.add_get("/latest-frame", get_latest_frame)
     app.router.add_get("/llm-response", get_llm_response)
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
@@ -514,7 +518,7 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbosity', type=int, default=2,
                         help='Set log level (0: ERROR, 1: WARNING, 2: INFO, 3: DEBUG)')
     parser.add_argument('--instruct', action='store_true', help='Enable instruction following')
-    parser.add_argument('--yolo-model', default='best.pt', help='Path to YOLO model')
+    parser.add_argument('--yolo-model', default='runs/detect/train3/weights/best.pt', help='Path to YOLO model')
     args = parser.parse_args()
 
     verbosity_map = {

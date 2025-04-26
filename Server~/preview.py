@@ -16,12 +16,12 @@ def fetch_latest_frame():
         img_base64 = data.get("image")
         if img_base64 is None:
             return None
-        
+
         img_bytes = base64.b64decode(img_base64)
         img_np = np.frombuffer(img_bytes, np.uint8)
         img_cv2 = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
         img_rgb = cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB)
-        
+
         return Image.fromarray(img_rgb)
     except Exception as e:
         print(f"Failed to fetch frame: {e}")
@@ -57,14 +57,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="XaiR Preview Window.")
     parser.add_argument('--ip', default='127.0.0.1', help='IP address to bind to')
     args = parser.parse_args()
-    
+
     SERVER_URL = f"https://{args.ip}:8000"  # Or http://localhost:8000 if no SSL
     VERIFY_SSL = False  # Set to False if using self-signed certs
-    
+
     with gr.Blocks() as demo:
                     image_display = gr.Image(type="pil")
                     text_display = gr.Textbox(label="LLM Response", lines=2, max_lines=5, interactive=False)
-                    
+
                     demo.load(live_stream, [], [image_display, text_display])
     demo.queue()
     demo.launch(server_name="0.0.0.0", server_port=7861, share=False)
