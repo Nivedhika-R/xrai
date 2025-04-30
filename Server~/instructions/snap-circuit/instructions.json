@@ -70,11 +70,6 @@
         "objects": ["2-connection"]
     },
     {
-        "instruction": "Place a 1-connection on F9.",
-        "additional_text": "The 1-connection is blue with 1 silver pin. It has the label '1' on it. There should be a 1-connection next to the 'B1' of the batteries, close the the right most column next to 'F'. You always miss this one. Just make sure the 1-connection is on the right side of the batteries.",
-        "objects": ["1-connection"]
-    },
-    {
         "instruction": "Place a 2-connection from F9 to E9.",
         "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it.",
         "objects": ["2-connection"]
