@@ -32,7 +32,7 @@ public class XAIRClient : Singleton<XAIRClient>
     private TextMeshPro LLMResponseText = null;
     private float _sendImagetimer = 0.0f;
     [SerializeField]
-    private float _sendImageFreqHz = 0.2f;
+    private float _sendImageFreqHz = 5f;
 
     [SerializeField]
     private bool enableDebug = false;
@@ -104,7 +104,7 @@ public class XAIRClient : Singleton<XAIRClient>
         }
 
         _sendImagetimer += Time.deltaTime;
-        if (_sendImagetimer >= 1.0f / _sendImageFreqHz)
+        if (_sendImagetimer >= 1.0f/ _sendImageFreqHz)
         {
             _sendImagetimer = 0.0f;
             _mediaManager.GetImage(
