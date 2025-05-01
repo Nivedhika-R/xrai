@@ -56,22 +56,22 @@
     },
     {
         "instruction": "Place a 2-connection from E4 to E5.",
-        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it.",
+        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it. It should be placed horizontally, connecting the Music IC and the Speaker.",
         "objects": ["2-connection"]
     },
     {
         "instruction": "Place a 2-connection from E2 to F2.",
-        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it.",
+        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it. It should be placed vertically, connecting the Music IC and the 5-connection.",
         "objects": ["2-connection"]
     },
     {
         "instruction": "Place a 2-connection from F6 to F7.",
-        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it.",
+        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it. It should be placed horizontally, connecting the 5-connection and the batteries.",
         "objects": ["2-connection"]
     },
     {
         "instruction": "Place a 2-connection from F9 to E9.",
-        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it.",
+        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it. It should be placed vertically, connecting the batteries and the Red LED.",
         "objects": ["2-connection"]
     },
     {

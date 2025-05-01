@@ -2,7 +2,8 @@ from threading import Thread
 from openai import OpenAI
 from logger import logger
 from constants import *
-from utils import image2base64
+from utils import image2base64, image2base64_ollama
+from ollama import chat
 
 class ChatGPTHelper:
     def __init__(self, model="gpt-4o"):
@@ -45,6 +46,25 @@ class ChatGPTHelper:
             if hasattr(chunk.choices[0].delta, "content"):
                 yield chunk.choices[0].delta.content
 
+    def ask_ollama(self, question, image=None):
+        image_bytes = []
+        for img in image:
+                image_bytes.append(image2base64_ollama(img))
+
+        #print(question)
+        response = chat(
+            model='llava',
+            messages=[
+                {
+                'role': 'user',
+                'content': question,
+                'images': image_bytes,
+                }
+            ],
+            )
+
+        return response.message.content
+
     def ask(self, question, image=None, system_question="You are a help AI assistant.",  max_tokens=4000):
         response = ""
         for chunk in self.ask_stream(question, image, system_question, max_tokens):
@@ -53,3 +73,4 @@ class ChatGPTHelper:
             response += chunk
 
         return response
+
