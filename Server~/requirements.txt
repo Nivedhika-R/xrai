@@ -41,6 +41,7 @@ accelerate==0.21.0
 sentencepiece==0.1.99
 einops==0.6.1
 
+pupil_apriltags
 
 soundfile==0.13.1
 ultralytics==8.3.105
