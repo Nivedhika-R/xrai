@@ -62,6 +62,9 @@ class BoardTracker:
             points_2D.append([u, v])
         return np.array(points_2D, dtype=np.float32)
 
+    def get_grid_coords(self, row, col):
+        pass
+
     def get_board_segment(self, frame):
         camera_params = (self.fx, self.fy, self.cx, self.cy)
 

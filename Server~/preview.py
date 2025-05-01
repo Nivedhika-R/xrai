@@ -51,7 +51,7 @@ def live_stream():
             yield None, text
         else:
             yield None, None
-        time.sleep(1)  # Poll every 100ms
+        time.sleep(0.2)  # Poll every 100ms
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="XaiR Preview Window.")

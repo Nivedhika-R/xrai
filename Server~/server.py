@@ -29,6 +29,7 @@ from yolo_helper import YoloHelper
 from frame import Frame
 from tutorial_follower import TutorialFollower
 from board_tracker import BoardTracker
+from debugger import Debugger
 
 server_id = 0
 next_client_id = 1
@@ -521,7 +522,7 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbosity', type=int, default=2,
                         help='Set log level (0: ERROR, 1: WARNING, 2: INFO, 3: DEBUG)')
     parser.add_argument('--instruct', action='store_true', help='Enable instruction following')
-    parser.add_argument('--yolo-model', default='runs/detect/train3/weights/best.pt', help='Path to YOLO model')
+    parser.add_argument('--yolo-model', default='runs/detect/train_latest/best.pt', help='Path to YOLO model')
     args = parser.parse_args()
 
     verbosity_map = {
@@ -536,6 +537,7 @@ if __name__ == "__main__":
     yolo = YoloHelper(args.yolo_model)
     if args.instruct:
         tutorial_follower = TutorialFollower(frame_deque, yolo=yolo, board_tracker=board_tracker)
+        debugger = Debugger(tutorial_follower)
 
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
