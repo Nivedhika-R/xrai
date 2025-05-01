@@ -10,7 +10,7 @@ from chatgpt_helper import ChatGPTHelper
 from constants import display_labels
 
 class TutorialFollower:
-    def __init__(self, frame_deque, yolo, instructions_path="instructions", task="snap-circuit"):
+    def __init__(self, frame_deque, yolo, board_tracker=None, instructions_path="instructions", task="snap-circuit"):
         self.instructions_path = instructions_path
         self.task = task
         self.yolo = yolo
@@ -24,11 +24,13 @@ class TutorialFollower:
         self.instructions = []
         self.additional_texts = []
         self.all_objects = {} # instruction: [object1, object2, ...]
+        self.board_tracker = board_tracker
 
     def get_current_objects(self):
         return self.all_objects[self.instructions[self.current_instruction_index]]
 
     def ask_llm(self, images):
+        # The second image is the same as the first image but with important objects labels. " + \
         prompt = \
             "I am currently trying to do the current instruction: " + \
             self.instructions[self.current_instruction_index] + "\n" + \
@@ -36,19 +38,19 @@ class TutorialFollower:
             self.additional_texts[self.current_instruction_index] + "\n" + \
             "Here is the complete list of instructions: " \
             + str(self.instructions) + "\n" + \
-            "I am giving you four images (images may be a bit blurry and have some glare): " + \
+            "I am giving you three images (images may be a bit blurry and have some glare): " + \
             "The first image (with a black background), shows the current state of my environment from an ego-centric view. " + \
-            "The second image is the same as the first image but with important objects labels. " + \
-            "The third image is a frame from a previous viewpoint. " + \
-            "The fourth image is a sample image of the expected result of the instruction. " + \
+            "The second image is a frame from a previous viewpoint. " + \
+            "The third image is a sample image of the expected result of the instruction. " + \
             "ANSWER THIS QUESTION: Does it look like the current instruction has been done in the first image I sent? " + \
             "Be true with your answers, as each piece needs to be in the location the instruction says. " + \
-            "If you see the full snap circuit transparent board and you think it is likely that the step is done, be lenient and say it is done. " + \
+            "If you see the full snap circuit transparent board and you think it is likely that the step is done, make sure the pieces are not placed in random positions, you mess this up too often so be careful about that. " + \
+            "Sometimes images are over exposed and hard to understand the pieces, so look for colors and also similarity to the expected result. " + \
             "The board has rows labeled A to G from top to bottom and columns labeled 1 to 10 from left to right, written in black marker. " + \
             "The batteries may cover some of the bottom row labels. Go off of your spatial reasoning if the labels cant be seen. " + \
             "Your answer should have True or False as the first word. " + \
-            "If false, just tell me what I should do to complete the step. If true, just say 'True'. Keep responses brief (one sentence). " + \
-            "Don't automatically skip steps if you haven't see the step happen. And don't say 'I don't know' or that you can't do it. Always give an answer. "
+            "If false, just tell me what I should do to complete the step and what I am missing or what I have done wrong. If true, just say 'True'. Keep responses brief (one sentence). " + \
+            "Don't automatically skip steps if you haven't see the step happen, especially pay attention to placement. The location of parts is very important. And don't say 'I don't know' or that you can't do it. Always give an answer. "
 
         ans = self.chat_gpt.ask(prompt, images)
         logger.info("Answer from ChatGPT: " + ans)
@@ -78,7 +80,7 @@ class TutorialFollower:
 
             latest_frame = self.frame_deque[-1]
             previous_frame = self.frame_deque[-2]
-            latest_frame_with_bboxes = self.run_object_detection(latest_frame)
+            # latest_frame_with_bboxes = self.run_object_detection(latest_frame)
 
             # get sample image
             sample_image_path = f"{self.instructions_path}/{self.task}/images/step{self.current_instruction_index}.jpg"
@@ -88,8 +90,10 @@ class TutorialFollower:
             sample_frame = Frame(1, sample_image, None, None, None)
 
             images = []
-            images.append(latest_frame.img.copy())
-            images.append(latest_frame_with_bboxes.img.copy())
+            cropped_board = self.board_tracker.get_board_segment(latest_frame.img.copy())
+            images.append(cropped_board)
+            # images.append(latest_frame.img.copy())
+            # images.append(latest_frame_with_bboxes.img.copy())
             images.append(previous_frame.img.copy())
             images.append(sample_frame.img.copy())
             try:

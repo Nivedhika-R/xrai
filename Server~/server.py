@@ -28,7 +28,7 @@ from chatgpt_helper import ChatGPTHelper
 from yolo_helper import YoloHelper
 from frame import Frame
 from tutorial_follower import TutorialFollower
-
+from board_tracker import BoardTracker
 
 server_id = 0
 next_client_id = 1
@@ -43,6 +43,8 @@ msg_queue = Queue()
 frame_deque = deque()
 
 chatgpt = ChatGPTHelper()
+board_tracker = BoardTracker()
+
 yolo = None
 tutorial_follower = None
 llm_reply = None
@@ -291,6 +293,8 @@ async def post_image(request):
         if len(instrinsics) == 16:
             values = list(map(float, instrinsics))
             proj_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+            if not board_tracker.params_initialized:
+                board_tracker.assign_camera_params(proj_mat[0][0], proj_mat[1][1], proj_mat[0][2], proj_mat[1][2])
 
         if len(distortion) == 16:
             values = list(map(float, distortion))
@@ -531,7 +535,7 @@ if __name__ == "__main__":
 
     yolo = YoloHelper(args.yolo_model)
     if args.instruct:
-        tutorial_follower = TutorialFollower(frame_deque, yolo=yolo)
+        tutorial_follower = TutorialFollower(frame_deque, yolo=yolo, board_tracker=board_tracker)
 
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
