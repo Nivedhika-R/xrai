@@ -310,7 +310,6 @@ async def post_image(request):
         image_rgb = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
 
         frame_deque.append(Frame(client_id, image_rgb, cam_mat, proj_mat, dist_mat, timestamp))
-
         logger.debug("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
 
@@ -539,6 +538,7 @@ if __name__ == "__main__":
         tutorial_follower = TutorialFollower(frame_deque, yolo=yolo, board_tracker=board_tracker)
         debugger = Debugger(tutorial_follower)
 
+
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
     display_thread.start()
@@ -547,4 +547,7 @@ if __name__ == "__main__":
     if args.instruct:
         tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
         tutorial_thread.start()
+        debug_thread = Thread(target=debugger.start, daemon=True)
+        debug_thread.start()
+
     run_server(args)
