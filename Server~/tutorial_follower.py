@@ -59,17 +59,15 @@ class TutorialFollower:
             + self.additional_texts[self.current_instruction_index] + "\n"
             + "Complete list of instructions: "
             + str(self.instructions) + "\n\n"
-            + "You will receive three images:\n"
+            + "You will receive 2 images:\n"
             + "- Image 1: The current view of the workspace (may be blurry or have glare).\n"
-            + "- Image 2: The same view with labeled components.\n"
-            + "- Image 3: An example showing the correct result for this instruction.\n\n"
-            + "Your task is to determine whether the instruction has been correctly completed in Images 1 and 2, by comparing them to Image 3.\n"
-            + "Respond with True if the task appears fully complete and correct. Respond with False if not, and briefly explain what is missing or incorrect (one sentence).\n"
+            + "- Image 2: An example showing the correct result for this instruction.\n\n"
+            + "Your task is to determine whether the instruction has been correctly completed in Image 1 by comparing it to Image 2.\n"
+            + "Respond with True if the task appears fully complete and correct. Respond with False if not, and briefly explain what is missing or incorrect (one sentence). True/False should be the first word.\n"
             + "Placement of components is critical. The board is labeled A-G (top to bottom) and 1-10 (left to right), marked in black. Batteries may block labels — use spatial reasoning when labels are obscured.\n"
             + "If visibility is poor, rely on component colors, shapes, and positions to make your assessment.\n"
             + "Always give a judgment — do not skip steps or say you are unsure."
         )
-
 
 
         # prompt = \
@@ -92,8 +90,8 @@ class TutorialFollower:
         #     "Don't automatically skip steps if you haven't see the step happen, especially pay attention to placement. The location of parts is very important. And don't say 'I don't know' or that you can't do it. Always give an answer. "
 
         ans = self.chat_gpt.ask(prompt, images)
-        logger.info("\nAnswer from ChatGPT: " + ans + "/n")
-        logger.info("\nCurrent Step: " + str(self.current_instruction_index) + "/n")
+        logger.info("\nAnswer from ChatGPT: " + ans)
+        logger.info("\nCurrent Step: " + str(self.current_instruction_index))
         return ans
 
     def load_instructions(self, instruction_file):
@@ -132,9 +130,9 @@ class TutorialFollower:
             cropped_board = self.board_tracker.get_board_segment(latest_frame.img.copy())
             images.append(cropped_board)
             # images.append(latest_frame.img.copy())
-            cropped_frame = Frame(latest_frame.client_id, cropped_board, latest_frame.cam_mat, latest_frame.proj_mat, latest_frame.dist_mat, time.time())
-            cropped_board_with_bboxes = self.run_object_detection(cropped_frame)
-            images.append(cropped_board_with_bboxes.img.copy())
+            # cropped_frame = Frame(latest_frame.client_id, cropped_board, latest_frame.cam_mat, latest_frame.proj_mat, latest_frame.dist_mat, time.time())
+            # cropped_board_with_bboxes = self.run_object_detection(cropped_frame)
+            # images.append(cropped_board_with_bboxes.img.copy())
             # images.append(previous_frame.img.copy())
             images.append(sample_frame.img.copy())
             try:

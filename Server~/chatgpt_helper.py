@@ -13,7 +13,7 @@
 #     def ask_stream(self, question, image=None, system_question="You are a help AI assistant.", max_tokens=4000):
 #         try:
 #             if image is None:
-                
+
 #                 response_stream = self.client.chat.completions.create(
 #                     model=self.model,
 #                     messages=[
@@ -121,7 +121,7 @@ class ChatGPTHelper:
                     messages=[
                         {
                             "role": "system",
-                            "content": f"{system_question} Images are from a head mounted camera."
+                            "content": f"{system_question} Images are from a head mounted camera. Ignore any people or hands in the image."
                         },
                         {
                             "role": "user",
@@ -135,7 +135,7 @@ class ChatGPTHelper:
                 return None
         return response.choices[0].message.content
 
-        
+
 
     def ask_ollama(self, question, image=None):
         image_bytes = []

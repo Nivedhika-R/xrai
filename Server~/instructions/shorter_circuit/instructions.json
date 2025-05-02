@@ -25,12 +25,12 @@
         "objects": ["2-connection"]
     },
     {
-        "instruction": "Place a 3-connection horizontally, 2 units below the battery.",
+        "instruction": "Place a 3-connection horizontally, 2 units below the bottom of the battery.",
         "additional_text": "The 3-connection is blue with 3 silver pins. It has the label '3' on it. It should be placed horizontally.",
         "objects": ["3-connection"]
     },
     {
-        "instruction": "Place a 3-connection vertically, collecting the left of the battery to the existing 3 connection.",
+        "instruction": "Place a 3-connection vertically, connecting the left of the battery to the existing 3 connection.",
         "additional_text": "The 3-connection is blue with 3 silver pins. It has the label '3' on it. It should be placed vertically from the battery to the other 3 connection.",
         "objects": ["3-connection"]
     },
