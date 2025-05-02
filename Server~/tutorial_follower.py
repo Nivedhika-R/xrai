@@ -10,7 +10,7 @@ from chatgpt_helper import ChatGPTHelper
 from constants import display_labels
 
 class TutorialFollower:
-    def __init__(self, frame_deque, yolo, board_tracker=None, instructions_path="instructions", task="snap-circuit"):
+    def __init__(self, frame_deque, yolo, board_tracker=None, instructions_path="instructions", task="shorter-circuit"):
         self.instructions_path = instructions_path
         self.task = task
         self.yolo = yolo
@@ -20,7 +20,7 @@ class TutorialFollower:
 
         self.answer =  None
         self.current_instruction_index = 0
-        self.task = "snap-circuit" #"humidifier"
+        self.task = task #"snap-circuit" #"humidifier"
         self.instructions = []
         self.additional_texts = []
         self.all_objects = {} # instruction: [object1, object2, ...]

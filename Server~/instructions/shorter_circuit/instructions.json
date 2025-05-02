@@ -1,0 +1,47 @@
+[
+    {
+        "instruction": "Place the Batteries (B1) from C2 to C4, with the batteries away from you.",
+        "additional_text": "The batteries are transparent white with orange and grey batteries. They have 'B1', '3V', and a red circuit power symbol.",
+        "objects": ["battery"]
+    },
+    {
+        "instruction": "Place the Speaker (SP) from C5 to C7 horizontally.",
+        "additional_text": "The speaker is red with a circular speaker and white base. It has 'SP' on it.",
+        "objects": ["speaker"]
+    },
+    {
+        "instruction": "Place a 2-connection from C4 to C5 horizontally.",
+        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it. It should be placed horizontally, connecting the Battery and the Speaker.",
+        "objects": ["2-connection"]
+    },
+    {
+        "instruction": "Place the Music IC (U1) vertically from F6 to F7 with the text U1 facing the right.",
+        "additional_text": "The Music IC is blue and has 'U1' and 'Music IC' on it.",
+        "objects": ["music"]
+    },
+    {
+        "instruction": "Place a 2-connection from C7 to D7 vertically.",
+        "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it. It should be placed vertically, connecting the speaker and the blue Music IC.",
+        "objects": ["2-connection"]
+    },
+    {
+        "instruction": "Place a 3-connection from E2 to E4 horizontally.",
+        "additional_text": "The 3-connection is blue with 3 silver pins. It has the label '3' on it. It should be placed horizontally.",
+        "objects": ["3-connection"]
+    },
+    {
+        "instruction": "Place a 3-connection from C2 to E2 vertically.",
+        "additional_text": "The 3-connection is blue with 3 silver pins. It has the label '3' on it. It should be placed vertically from the battery to the other 3 connection.",
+        "objects": ["3-connection"]
+    },
+    {
+        "instruction": "Place the Switch (S1) from E4 to E6.",
+        "additional_text": "The switch is green with a white base. It has 'S1' on it. It should connect the 3-connection and the Music IC.",
+        "objects": ["switch"]
+    },
+    {
+        "instruction": "You're done! Turn on the Switch (S1)!",
+        "additional_text": "",
+        "objects": []
+    }
+]
