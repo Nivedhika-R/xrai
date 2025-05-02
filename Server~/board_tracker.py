@@ -95,14 +95,14 @@ class BoardTracker:
             #get camera coordinates
             board_camera = self.project_2D(board_world_coords.T, self.fx, self.fy, self.cx, self.cy)
             # Draw board
-            # for i in range(len(board_camera)):
-            #     pt = tuple(map(int, board_camera[i]))
-            #     cv2.circle(frame, pt, 5, (255, 0, 255), -1)
-            # # Draw lines between corners
-            # for i in range(len(board_camera)):
-            #     pt1 = tuple(map(int, board_camera[i]))
-            #     pt2 = tuple(map(int, board_camera[(i + 1) % len(board_camera)]))
-            #     cv2.line(frame, pt1, pt2, (255, 0, 255), 2)
+            for i in range(len(board_camera)):
+                pt = tuple(map(int, board_camera[i]))
+                cv2.circle(frame, pt, 5, (255, 0, 255), -1)
+            # Draw lines between corners
+            for i in range(len(board_camera)):
+                pt1 = tuple(map(int, board_camera[i]))
+                pt2 = tuple(map(int, board_camera[(i + 1) % len(board_camera)]))
+                cv2.line(frame, pt1, pt2, (255, 0, 255), 2)
 
             #crop image to board
             x_min = int(min(board_camera[:, 0]))

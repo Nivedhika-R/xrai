@@ -182,14 +182,14 @@ public class MagicLeapCameraManager : MonoBehaviour, ICameraDeviceManager
         }
 
         // Trigger automatic exposure and white balance
-        await _captureCamera.PreCaptureAEAWBAsync();
+        await _captureCamera.PreCaptureAE.AWBAsync();
 
         Debug.Log("Starting Video Capture.");
 
         bool captureStarted = await StartVideoCaptureAsync();
         if (!captureStarted)
         {
-            Debug.LogError("Could not start capture. Disconnecting Camera.");
+            Debug.LogError("Could not start capture. Disconnecting Camera.");s
             await DisconnectCameraAsync();
             return false;
         }

@@ -10,7 +10,7 @@ from chatgpt_helper import ChatGPTHelper
 from constants import display_labels
 
 class TutorialFollower:
-    def __init__(self, frame_deque, yolo, board_tracker=None, instructions_path="instructions", task="shorter-circuit"):
+    def __init__(self, frame_deque, yolo, board_tracker=None, instructions_path="instructions", task="shorter_circuit"):
         self.instructions_path = instructions_path
         self.task = task
         self.yolo = yolo
@@ -31,26 +31,46 @@ class TutorialFollower:
 
     def ask_llm(self, images):
         #            "The third image is a frame from a previous viewpoint. " + \
-        prompt = \
-            "I am currently trying to do the current instruction: " + \
-            self.instructions[self.current_instruction_index] + "\n" + \
-            "Here is a some additional information: " + \
-            self.additional_texts[self.current_instruction_index] + "\n" + \
-            "Here is the complete list of instructions: " \
-            + str(self.instructions) + "\n" + \
-            "I am giving you four images (images may be a bit blurry and have some glare): " + \
-            "The first image (with a black background), shows the current state of my environment from an ego-centric view. " + \
-            "The second image is the same as the first image but with important objects labels. " + \
-            "The third image is a sample image of the expected result of the instruction. " + \
-            "ANSWER THIS QUESTION: Does it look like the current instruction has been done in the first image I sent? " + \
-            "Be true with your answers, as each piece needs to be in the location the instruction says. " + \
-            "If you see the full snap circuit transparent board and you think it is likely that the step is done, make sure the pieces are not placed in random positions, you mess this up too often so be careful about that. " + \
-            "Sometimes images are over exposed and hard to understand the pieces, so look for colors and also similarity to the expected result. " + \
-            "The board has rows labeled A to G from top to bottom and columns labeled 1 to 10 from left to right, written in black marker. " + \
-            "The batteries may cover some of the bottom row labels. Go off of your spatial reasoning if the labels cant be seen. " + \
-            "Your answer should have True or False as the first word. Look at the example image and try to match that, compare that to the first 3 frames I give you which is what I do. I highlighted the change you should be looking for" + \
-            "If false, just tell me what I should do to complete the step and what I am missing or what I have done wrong. If true, just say 'True'. Keep responses brief (one sentence). " + \
-            "Don't automatically skip steps if you haven't see the step happen, especially pay attention to placement. The location of parts is very important. Always give me an answer even if you are not sure. "
+        # prompt = \
+        #     "I am currently trying to do the current instruction: " + \
+        #     self.instructions[self.current_instruction_index] + "\n" + \
+        #     "Here is a some additional information: " + \
+        #     self.additional_texts[self.current_instruction_index] + "\n" + \
+        #     "Here is the complete list of instructions: " \
+        #     + str(self.instructions) + "\n" + \
+        #     "I am giving you four images (images may be a bit blurry and have some glare): " + \
+        #     "The first image (with a black background), shows the current state of my environment from an ego-centric view. " + \
+        #     "The second image is the same as the first image but with important objects labels. " + \
+        #     "The third image is a sample image of the expected result of the instruction. It has the objects I need to place highlighted in a green bounding box. " + \
+        #     "ANSWER THIS QUESTION: Does it look like the current instruction has been done in the first and second image I sent? You can use the third image as a reference if needed. " + \
+        #     "Be true with your answers, as each piece needs to be in the location the instruction says. " + \
+        #     "If you see the full snap circuit transparent board and you think it is likely that the step is done, make sure the pieces are not placed in random positions, you mess this up too often so be careful about that. " + \
+        #     "Sometimes images are over exposed and hard to understand the pieces, so look for colors and also similarity to the expected result. " + \
+        #     "The board has rows labeled A to G from top to bottom and columns labeled 1 to 10 from left to right, written in black marker. " + \
+        #     "Your answer should have True or False as the first word. Look at the example image and match it to that, compare that to the first 2 frames I give you which is what I do. I highlighted the change you should be looking for" + \
+        #     "If false, just tell me what I should do to complete the step and what I am missing or what I have done wrong. If true, just say 'True'. Keep responses brief (one sentence). " + \
+        #     "Don't automatically skip steps if you haven't see the step happen, especially pay attention to placement. The location of parts is very important. Always give me an answer even if you are not sure, do not make any excuses. "
+
+
+        prompt = (
+            "I am currently working on this instruction: "
+            + self.instructions[self.current_instruction_index] + "\n"
+            + "Additional context: "
+            + self.additional_texts[self.current_instruction_index] + "\n"
+            + "Complete list of instructions: "
+            + str(self.instructions) + "\n\n"
+            + "You will receive three images:\n"
+            + "- Image 1: The current view of the workspace (may be blurry or have glare).\n"
+            + "- Image 2: The same view with labeled components.\n"
+            + "- Image 3: An example showing the correct result for this instruction.\n\n"
+            + "Your task is to determine whether the instruction has been correctly completed in Images 1 and 2, by comparing them to Image 3.\n"
+            + "Respond with True if the task appears fully complete and correct. Respond with False if not, and briefly explain what is missing or incorrect (one sentence).\n"
+            + "Placement of components is critical. The board is labeled A-G (top to bottom) and 1-10 (left to right), marked in black. Batteries may block labels — use spatial reasoning when labels are obscured.\n"
+            + "If visibility is poor, rely on component colors, shapes, and positions to make your assessment.\n"
+            + "Always give a judgment — do not skip steps or say you are unsure."
+        )
+
+
 
         # prompt = \
         #     "I am currently trying to do the current instruction: " + \

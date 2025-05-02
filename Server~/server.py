@@ -69,7 +69,7 @@ async def get_latest_frame(request):
         return web.json_response({"image": None})
 
     frame = frame_deque[-1]
-    logger.info("Sending latest frame to client %s", frame.client_id)
+    logger.debug("Sending latest frame to client %s", frame.client_id)
     image_with_bboxes = draw_yolo_response(frame)
     _, buffer = cv2.imencode('.jpg', image_with_bboxes)
     frame_base64 = base64.b64encode(buffer).decode('utf-8')
