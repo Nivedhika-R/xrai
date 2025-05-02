@@ -31,7 +31,6 @@ class TutorialFollower:
 
     def ask_llm(self, images):
         #            "The third image is a frame from a previous viewpoint. " + \
-
         prompt = \
             "I am currently trying to do the current instruction: " + \
             self.instructions[self.current_instruction_index] + "\n" + \
@@ -101,8 +100,7 @@ class TutorialFollower:
 
             latest_frame = self.frame_deque[-1]
             previous_frame = self.frame_deque[-2]
-            latest_frame_with_bboxes = self.run_object_detection(latest_frame)
-
+            # latest_frame_with_bboxes = self.run_object_detection(latest_frame)
             # get sample image
             sample_image_path = f"{self.instructions_path}/{self.task}/images/step{self.current_instruction_index}.jpg"
             sample_image = cv2.imread(sample_image_path)

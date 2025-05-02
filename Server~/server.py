@@ -65,7 +65,6 @@ async def cors_middleware(request, handler):
 async def get_latest_frame(request):
     global frame_deque
     if len(frame_deque) == 0:
-        logger.info("in none")
         return web.json_response({"image": None})
 
     frame = frame_deque[-1]
@@ -353,7 +352,10 @@ async def on_shutdown(app):
 
 def handle_images():
     global frame_deque, msg_queue
-
+    # Start the tutorial follower thread
+    if args.instruct:
+        tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
+        tutorial_thread.start()
     while True:
         try:
             if args.instruct:
@@ -396,9 +398,8 @@ def ask_tutorial(frame):
     global llm_reply
     tutorial_answer = tutorial_follower.get_answer()
     if tutorial_answer is None:
+        time.sleep(0.2)
         return
-
-    logger.info(tutorial_answer)
 
     llm_reply = tutorial_answer
     tutorial_follower.clear_answer()
@@ -511,7 +512,7 @@ def run_server(args):
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
 
-    web.run_app(app, host=args.ip, port=args.port, ssl_context=ssl_context if not args.no_ssl else None)
+    web.run_app(app, host=args.ip, port=args.port, access_log=None, ssl_context=ssl_context if not args.no_ssl else None)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="XaiR Server.")
@@ -543,8 +544,5 @@ if __name__ == "__main__":
     display_thread = Thread(target=handle_images, daemon=True)
     display_thread.start()
 
-    # Start the tutorial follower thread
-    if args.instruct:
-        tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
-        tutorial_thread.start()
+    
     run_server(args)
