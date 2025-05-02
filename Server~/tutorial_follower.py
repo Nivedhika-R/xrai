@@ -50,7 +50,7 @@ class TutorialFollower:
             "The batteries may cover some of the bottom row labels. Go off of your spatial reasoning if the labels cant be seen. " + \
             "Your answer should have True or False as the first word. Look at the example image and try to match that, compare that to the first 3 frames I give you which is what I do. I highlighted the change you should be looking for" + \
             "If false, just tell me what I should do to complete the step and what I am missing or what I have done wrong. If true, just say 'True'. Keep responses brief (one sentence). " + \
-            "Don't automatically skip steps if you haven't see the step happen, especially pay attention to placement. The location of parts is very important. And don't say 'I don't know' or that you can't do it. Always give an answer. "
+            "Don't automatically skip steps if you haven't see the step happen, especially pay attention to placement. The location of parts is very important. Always give me an answer even if you are not sure. "
 
         # prompt = \
         #     "I am currently trying to do the current instruction: " + \
