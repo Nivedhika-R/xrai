@@ -18,6 +18,7 @@ class TutorialFollower:
         self.frame_deque = frame_deque
         self.chat_gpt = ChatGPTHelper()
 
+        self.images = [] # images send to LLM, (cropped user image + sample iamges)
         self.answer =  None
         self.current_instruction_index = 0
         self.task = task #"snap-circuit" #"humidifier"
@@ -169,7 +170,7 @@ class TutorialFollower:
             self.answer = ("Step completed!" if current_instruction_state else "Step not completed yet.") + "\n\n" + \
                             "Current Step: " + current_instruction + "\n\n" + \
                             "Feedback: " + "\"" + final_part + "\""
-
+            self.images = images
             time.sleep(0.1)
 
     def get_answer(self):
@@ -177,6 +178,10 @@ class TutorialFollower:
 
     def clear_answer(self):
         self.answer = None
+
+    def get_images(self):
+        # return the images sent to the LLM
+        return self.images
 
     def run_object_detection(self, frame):
         yolo_results = self.yolo.predict(frame.img)

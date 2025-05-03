@@ -49,6 +49,7 @@ board_tracker = BoardTracker()
 yolo = None
 tutorial_follower = None
 llm_reply = None
+llm_images = []
 debugger = None
 
 
@@ -79,6 +80,27 @@ async def get_latest_frame(request):
 async def get_llm_response(request):
     global llm_reply
     return web.json_response({"llm_response": llm_reply})
+
+# GET /llm-images
+async def get_llm_images(request):
+    global llm_images
+    if len(llm_images) == 0:
+        return web.json_response({"user_image": None, "sample_image": None})
+
+    elif len(llm_images) == 1:
+        logger.debug("Only 1 llm_images, something is wrong!")
+        return web.json_response({"user_image": None, "sample_image": None})
+
+    assert len(llm_images) == 2, "llm_images should be of length 2" # TODO: remove later
+    logger.debug(f"Sending {len(llm_images)}llm_images to client")\
+
+    response_data = {}
+    _, buffer1 = cv2.imencode('.jpg', llm_images[0])
+    response_data["user_image"] = base64.b64encode(buffer1).decode('utf-8')
+    _, buffer2 = cv2.imencode('.jpg', llm_images[1])
+    response_data["sample_image"] = base64.b64encode(buffer2).decode('utf-8')
+
+    return web.json_response(response_data)
 
 # POST /login
 async def login(request):
@@ -403,6 +425,9 @@ def ask_tutorial(frame):
         time.sleep(0.2)
         return
 
+    global llm_images
+    llm_images = tutorial_follower.get_images()
+
     llm_reply = tutorial_answer
     tutorial_follower.clear_answer()
     msg = {
@@ -511,6 +536,7 @@ def run_server(args):
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
     app.router.add_get("/latest-frame", get_latest_frame)
     app.router.add_get("/llm-response", get_llm_response)
+    app.router.add_get("/llm-images", get_llm_images)
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
 
