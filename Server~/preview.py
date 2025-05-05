@@ -83,16 +83,26 @@ if __name__ == "__main__":
     SERVER_URL = f"https://{args.ip}:8000"  # Or http://localhost:8000 if no SSL
     VERIFY_SSL = False  # Set to False if using self-signed certs
 
-    with gr.Blocks() as demo:
-        image_display = gr.Image(type="pil")
+    with gr.Blocks(css=".big-textbox textarea {font-size: 24px !important;}") as demo:
+        #add text title
+        gr.Markdown("<h1 style='text-align: center;'>XaiR Preview Window</h1>")
+
+        gr.Markdown("<h2 style='text-align: left;'>Live Stream Images</h2>")
+        image_display = gr.Image(type="pil", show_label = False)
 
         with gr.Row():
             with gr.Column(scale = 1):
-                user_image_display = gr.Image(type="pil", label="User Image")
-                sample_image_display = gr.Image(type="pil", label="Sample Image")
+                gr.Markdown("<h2 style='text-align: left;'>Image Sent to LLM</h2>")
+                user_image_display = gr.Image(type="pil", show_label = False)
+
+                gr.Markdown("<h2 style='text-align: left;'>Reference Image of Completed Step</h2>")
+
+                sample_image_display = gr.Image(type="pil", show_label = False)
 
             with gr.Column(scale = 2):
-                text_display = gr.Textbox(label="LLM Response", lines=5, max_lines=8, interactive=False)
+                gr.Markdown("<h2 style='text-align: left;'>Response from LLM</h2>")
+                #increase font size of textbox
+                text_display = gr.Textbox( lines=5, max_lines=8, interactive=False, show_label = False, elem_classes="big-textbox")
 
         demo.load(live_stream, [], [image_display, text_display, user_image_display, sample_image_display])
     demo.queue()
