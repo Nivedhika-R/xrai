@@ -1,41 +1,41 @@
 [
     {
-        "instruction": "Place the Batteries (B1) from C2 to C4, with the batteries away from you.",
+        "instruction": "Find the transparent board with a battery (B1) on it",
         "additional_text": "The batteries are transparent white with orange and grey batteries. They have 'B1', '3V', and a red circuit power symbol.",
         "objects": ["battery"]
     },
     {
-        "instruction": "Place the Speaker (SP) from C5 to C7 horizontally.",
+        "instruction": "Place the Speaker (SP) horizontally, one unit to the right of the battery.",
         "additional_text": "The speaker is red with a circular speaker and white base. It has 'SP' on it.",
         "objects": ["speaker"]
     },
     {
-        "instruction": "Place a 2-connection from C4 to C5 horizontally.",
+        "instruction": "Place a 2-connection horizontally, connecting the battery to the Speaker.",
         "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it. It should be placed horizontally, connecting the Battery and the Speaker.",
         "objects": ["2-connection"]
     },
     {
-        "instruction": "Place the Music IC (U1) vertically from F6 to F7 with the text U1 facing the right.",
+        "instruction": "Place the Music IC (U1) vertically from F6 to F7 with the text U1 facing the right, right below the Speaker.",
         "additional_text": "The Music IC is blue and has 'U1' and 'Music IC' on it.",
         "objects": ["music"]
     },
     {
-        "instruction": "Place a 2-connection from C7 to D7 vertically.",
+        "instruction": "Place a 2-connection vertically, connecting the Music IC to the Speaker.",
         "additional_text": "The 2-connection is blue with 2 silver pins. It has the label '2' on it. It should be placed vertically, connecting the speaker and the blue Music IC.",
         "objects": ["2-connection"]
     },
     {
-        "instruction": "Place a 3-connection from E2 to E4 horizontally.",
+        "instruction": "Place a 3-connection horizontally, 2 units below the bottom of the battery.",
         "additional_text": "The 3-connection is blue with 3 silver pins. It has the label '3' on it. It should be placed horizontally.",
         "objects": ["3-connection"]
     },
     {
-        "instruction": "Place a 3-connection from C2 to E2 vertically.",
+        "instruction": "Place a 3-connection vertically, connecting the left of the battery to the existing 3 connection.",
         "additional_text": "The 3-connection is blue with 3 silver pins. It has the label '3' on it. It should be placed vertically from the battery to the other 3 connection.",
         "objects": ["3-connection"]
     },
     {
-        "instruction": "Place the Switch (S1) from E4 to E6.",
+        "instruction": "Place the Switch (S1) horizontally between the 3 connection and the Music IC.",
         "additional_text": "The switch is green with a white base. It has 'S1' on it. It should connect the 3-connection and the Music IC.",
         "objects": ["switch"]
     },

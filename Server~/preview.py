@@ -39,18 +39,40 @@ def fetch_latest_text():
         print(f"Failed to fetch text: {e}")
         return None
 
+def fetch_llm_images(): # i.e. the 2 images that generated the text (croppped user image + sample image)
+    try:
+        response = requests.get(f"{SERVER_URL}/llm-images", verify=VERIFY_SSL)
+        data = response.json()
+
+        img_base64 = data.get("user_image")
+        if img_base64 is None:
+            return None, None
+        img_bytes = base64.b64decode(img_base64)
+        img_np = np.frombuffer(img_bytes, np.uint8)
+        img_cv2 = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
+        img_rgb = cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB)
+        user_image = Image.fromarray(img_rgb)
+
+        img_base64 = data.get("sample_image")
+        if img_base64 is None:
+            return None, None
+        img_bytes = base64.b64decode(img_base64)
+        img_np = np.frombuffer(img_bytes, np.uint8)
+        img_cv2 = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
+        img_rgb = cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB)
+        sample_image = Image.fromarray(img_rgb)
+
+        return user_image, sample_image
+    except Exception as e:
+        print(f"Failed to fetch frame: {e}")
+        return None, None
+
 def live_stream():
     while True:
         frame = fetch_latest_frame()
         text = fetch_latest_text()
-        if frame is not None and text is not None:
-            yield frame, text
-        elif frame is not None:
-            yield frame, None
-        elif text is not None:
-            yield None, text
-        else:
-            yield None, None
+        user_image, sample_image = fetch_llm_images()
+        yield frame, text, user_image, sample_image
         # time.sleep(0.05)  # Poll every 100ms
 
 if __name__ == "__main__":
@@ -62,9 +84,16 @@ if __name__ == "__main__":
     VERIFY_SSL = False  # Set to False if using self-signed certs
 
     with gr.Blocks() as demo:
-                    image_display = gr.Image(type="pil")
-                    text_display = gr.Textbox(label="LLM Response", lines=2, max_lines=5, interactive=False)
+        image_display = gr.Image(type="pil")
 
-                    demo.load(live_stream, [], [image_display, text_display])
+        with gr.Row():
+            with gr.Column(scale = 1):
+                user_image_display = gr.Image(type="pil", label="User Image")
+                sample_image_display = gr.Image(type="pil", label="Sample Image")
+
+            with gr.Column(scale = 2):
+                text_display = gr.Textbox(label="LLM Response", lines=5, max_lines=8, interactive=False)
+
+        demo.load(live_stream, [], [image_display, text_display, user_image_display, sample_image_display])
     demo.queue()
     demo.launch(server_name="0.0.0.0", server_port=7861, share=False)
