@@ -5,7 +5,7 @@
         "objects": ["battery"]
     },
     {
-        "instruction": "Place the Speaker (SP) horizontally, one unit to the right of the battery.",
+        "instruction": "Place the Speaker (SP), one unit to the right of the battery.",
         "additional_text": "The speaker is red with a circular speaker and white base. It has 'SP' on it.",
         "objects": ["speaker"]
     },
@@ -15,7 +15,7 @@
         "objects": ["2-connection"]
     },
     {
-        "instruction": "Place the Music IC (U1) vertically from F6 to F7 with the text U1 facing the right, right below the Speaker.",
+        "instruction": "Place the Music IC (U1) from F6 to F7 with the text U1 facing the right, right below the Speaker.",
         "additional_text": "The Music IC is blue and has 'U1' and 'Music IC' on it.",
         "objects": ["music"]
     },
