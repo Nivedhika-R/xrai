@@ -83,7 +83,7 @@ async def get_llm_response(request):
 
 # GET /llm-images
 async def get_llm_images(request):
-    global llm_images
+    llm_images = tutorial_follower.get_images()
     if len(llm_images) == 0:
         return web.json_response({"user_image": None, "sample_image": None})
 
@@ -329,9 +329,9 @@ async def post_image(request):
         image = ImageEnhance.Brightness(image).enhance(0.9) # decrease brightness
         image = ImageEnhance.Contrast(image).enhance(1.5) # increase contrast
         image_rgb = np.array(image)
-        image_rgb = cv2.cvtColor(image_rgb, cv2.COLOR_BGR2RGB)
+        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
 
-        frame_deque.append(Frame(client_id, image_rgb, cam_mat, proj_mat, dist_mat, timestamp))
+        frame_deque.append(Frame(client_id, image_bgr, cam_mat, proj_mat, dist_mat, timestamp))
         logger.debug("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
 
@@ -424,9 +424,6 @@ def ask_tutorial(frame):
     if tutorial_answer is None:
         time.sleep(0.2)
         return
-
-    global llm_images
-    llm_images = tutorial_follower.get_images()
 
     llm_reply = tutorial_answer
     tutorial_follower.clear_answer()

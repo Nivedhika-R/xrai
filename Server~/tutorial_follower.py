@@ -70,7 +70,6 @@ class TutorialFollower:
             + "Always give a judgment — do not skip steps or say you are unsure."
         )
 
-
         # prompt = \
         #     "I am currently trying to do the current instruction: " + \
         #     self.instructions[self.current_instruction_index] + "\n" + \
@@ -123,7 +122,7 @@ class TutorialFollower:
             # get sample image
             sample_image_path = f"{self.instructions_path}/{self.task}/images/step{self.current_instruction_index}.jpg"
             sample_image = cv2.imread(sample_image_path)
-            sample_image = cv2.cvtColor(sample_image, cv2.COLOR_BGR2RGB)
+            # sample_image = cv2.cvtColor(sample_image, cv2.COLOR_BGR2RGB)
             sample_image = cv2.resize(sample_image, (1280, 720))
             sample_frame = Frame(1, sample_image, None, None, None)
 
