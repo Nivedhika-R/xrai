@@ -62,8 +62,6 @@ class BoardTracker:
             points_2D.append([u, v])
         return np.array(points_2D, dtype=np.float32)
 
-    def get_grid_coords(self, row, col):
-        pass
 
     def get_board_segment(self, frame):
         camera_params = (self.fx, self.fy, self.cx, self.cy)
@@ -88,21 +86,22 @@ class BoardTracker:
             rvec = tag.pose_R  # 3x3 rotation matrix
             tvec = tag.pose_t  # 3x1 translation vector
 
+
             #board in world coordinates
             board_world_coords = rvec @ self.board_coords.T + tvec
 
-            print("board_world_coords", board_world_coords)
+            # print("board_world_coords", board_world_coords)
             #get camera coordinates
             board_camera = self.project_2D(board_world_coords.T, self.fx, self.fy, self.cx, self.cy)
             # Draw board
-            for i in range(len(board_camera)):
-                pt = tuple(map(int, board_camera[i]))
-                cv2.circle(frame, pt, 5, (255, 0, 255), -1)
-            # Draw lines between corners
-            for i in range(len(board_camera)):
-                pt1 = tuple(map(int, board_camera[i]))
-                pt2 = tuple(map(int, board_camera[(i + 1) % len(board_camera)]))
-                cv2.line(frame, pt1, pt2, (255, 0, 255), 2)
+            # for i in range(len(point_camera)):
+            #     pt = tuple(map(int, point_camera[i]))
+            #     cv2.circle(frame, pt, 15, (255, 0, 255), -1)
+            # # Draw lines between corners
+            # for i in range(len(board_camera)):
+            #     pt1 = tuple(map(int, board_camera[i]))
+            #     pt2 = tuple(map(int, board_camera[(i + 1) % len(board_camera)]))
+            #     cv2.line(frame, pt1, pt2, (255, 0, 255), 2)
 
             #crop image to board
             x_min = int(min(board_camera[:, 0]))
@@ -119,3 +118,14 @@ class BoardTracker:
 
         cv2.imwrite("cropped_img.png", cropped_img)
         return cropped_img
+
+if __name__ == "__main__":
+    BoardTracker = BoardTracker()
+    img = cv2.imread("/home/elu2/Downloads/IMG_3695.png")
+    #rotate image
+    img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    get_board_segment = BoardTracker.get_board_segment(img)
+    cv2.imshow("Cropped Image", get_board_segment)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
