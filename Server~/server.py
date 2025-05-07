@@ -91,14 +91,16 @@ async def get_llm_images(request):
         logger.debug("Only 1 llm_images, something is wrong!")
         return web.json_response({"user_image": None, "sample_image": None})
 
-    assert len(llm_images) == 2, "llm_images should be of length 2" # TODO: remove later
-    logger.debug(f"Sending {len(llm_images)}llm_images to client")\
+    # assert len(llm_images) == 2, "llm_images should be of length 2" # TODO: remove later
+    # logger.debug(f"Sending {len(llm_images)}llm_images to client")\
 
     response_data = {}
     _, buffer1 = cv2.imencode('.jpg', llm_images[0])
     response_data["user_image"] = base64.b64encode(buffer1).decode('utf-8')
     _, buffer2 = cv2.imencode('.jpg', llm_images[1])
-    response_data["sample_image"] = base64.b64encode(buffer2).decode('utf-8')
+    response_data["yolo_image"] = base64.b64encode(buffer2).decode('utf-8')
+    _, buffer3 = cv2.imencode('.jpg', llm_images[2])
+    response_data["sample_image"] = base64.b64encode(buffer3).decode('utf-8')
 
     return web.json_response(response_data)
 
@@ -422,7 +424,6 @@ def ask_tutorial(frame):
     global llm_reply
     tutorial_answer = tutorial_follower.get_answer()
     if tutorial_answer is None:
-        time.sleep(0.2)
         return
 
     llm_reply = tutorial_answer

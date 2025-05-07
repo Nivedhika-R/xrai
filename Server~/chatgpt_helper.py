@@ -86,7 +86,7 @@ from utils import image2base64, image2base64_ollama
 from ollama import chat
 
 class ChatGPTHelper:
-    def __init__(self, model="gpt-4o"):
+    def __init__(self, model="gpt-4.1"):
         self.client = OpenAI(api_key=OPENAI_API_KEY)
         self.model = model
 
@@ -99,7 +99,8 @@ class ChatGPTHelper:
                     {"role": "system", "content": system_question},
                     {"role": "user", "content": [{"type": "text", "text": question}]}
                 ],
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                temperature=0.5,
             )
         else:
             content = [{"type": "text", "text": question}]
@@ -121,14 +122,15 @@ class ChatGPTHelper:
                     messages=[
                         {
                             "role": "system",
-                            "content": f"{system_question} Images are from a head mounted camera. Ignore any people or hands in the image."
+                            "content": f"{system_question} Images are from a head mounted camera."
                         },
                         {
                             "role": "user",
                             "content": content
                         }
                     ],
-                    max_tokens=max_tokens
+                    max_tokens=max_tokens,
+                    temperature=0.5,
                 )
             except Exception as e:
                 logger.error(f"Error in OpenAI Call: {e}")
