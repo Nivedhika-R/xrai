@@ -238,7 +238,7 @@ public class XAIRClient : Singleton<XAIRClient>
                         textObject.transform.position = hitPoint + new Vector3(0.0f, -0.015f, 0.0f);
 
                         TextMesh textMesh = textObject.AddComponent<TextMesh>();
-                        textMesh.text = $"{objectLabel} ({objectConfidences[i]:0.00})";
+                        textMesh.text = $"{objectLabel}";
                         textMesh.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
                         textMesh.fontSize = 90;
                         textMesh.characterSize = 0.01f;
