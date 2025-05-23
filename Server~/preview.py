@@ -92,31 +92,27 @@ if __name__ == "__main__":
     SERVER_URL = f"https://{args.ip}:8000"  # Or http://localhost:8000 if no SSL
     VERIFY_SSL = False  # Set to False if using self-signed certs
 
-    with gr.Blocks(css=".big-textbox textarea {font-size: 24px !important;}") as demo:
-        #add text title
+    with gr.Blocks(css=".big-textbox textarea {font-size: 18px !important;}") as demo:
+        # add text title
         gr.Markdown("<h1 style='text-align: center;'>XaiR Preview Window</h1>")
-
-        gr.Markdown("<h2 style='text-align: left;'>Live Stream Images</h2>")
-        image_display = gr.Image(type="pil", show_label = False)
 
         with gr.Row():
             with gr.Column(scale = 1):
-                gr.Markdown("<h2 style='text-align: left;'>Image Sent to LLM</h2>")
-                user_image_display = gr.Image(type="pil", show_label = False)
+                gr.Markdown("<h2 style='text-align: left;'>Live Stream w/ Obj Detection:</h2>")
+                image_display = gr.Image(type="pil", show_label=False)
 
-                gr.Markdown("<h2 style='text-align: left;'>Image Annotated with YOLO</h2>")
-                yolo_image_display = gr.Image(type="pil", show_label = False)
+                gr.Markdown("<h2 style='text-align: left;'>Annotated Image w/ Obj Detection [Sent to LLM]:</h2>")
+                yolo_image_display = gr.Image(type="pil", show_label=False)
+            with gr.Column(scale = 1):
 
+                gr.Markdown("<h2 style='text-align: left;'>Current Image [Sent to LLM]:</h2>")
+                user_image_display = gr.Image(type="pil", show_label=False)
 
-                gr.Markdown("<h2 style='text-align: left;'>Reference Image of Completed Step</h2>")
+                gr.Markdown("<h2 style='text-align: left;'>Reference Image of Completed Step [Sent to LLM]:</h2>")
+                sample_image_display = gr.Image(type="pil", show_label=False)
 
-                sample_image_display = gr.Image(type="pil", show_label = False)
-
-
-
-
-            with gr.Column(scale = 2):
-                gr.Markdown("<h2 style='text-align: left;'>Response from LLM</h2>")
+            with gr.Column(scale = 1):
+                gr.Markdown("<h2 style='text-align: left;'>Response from LLM:</h2>")
                 #increase font size of textbox
                 text_display = gr.Textbox( lines=5, max_lines=8, interactive=False, show_label = False, elem_classes="big-textbox")
 

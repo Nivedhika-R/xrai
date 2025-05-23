@@ -54,8 +54,8 @@
         }
     },
     {
-        "instruction": "Place a 3-connection connecting the other side of the battery to the existing 3 connection.",
-        "additional_text": "The 3-connection is blue with 3 silver pins. It has the label '3' on it. It should be placed between the battery to the other 3 connection.",
+        "instruction": "Place a 3-connection connecting the battery to the horizontal 3 connection.",
+        "additional_text": "The 3-connection is blue with 3 silver pins. It has the label '3' on it. It should be placed between the battery to the 3 connection, forming an L with the 3 connections. Don't worry about searching for the 3 connetion, just check if both sides of the battery is connected to something.",
         "objects": ["3-connection"],
         "position": {
             "min": [3, 2],

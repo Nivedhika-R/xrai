@@ -157,7 +157,6 @@ class TutorialFollower:
             for line in answer.splitlines():
                 if "true" in line.lower():
                     self.current_instruction_index += 1
-                    time.sleep(2)
                 if 'Instruction number:' in line:
                     current_instruction_index = line.split('Instruction number:')[1]
                     self.current_instruction_index = int(current_instruction_index)
