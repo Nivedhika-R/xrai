@@ -106,11 +106,10 @@ class ChatGPTHelper:
             content = [{"type": "text", "text": question}]
             if isinstance(image, list):
                 for i, img in enumerate(image):
-                    if i == 0:
-                        content.append({
-                            "type": "image_url",
-                            "image_url": {"url": image2base64(img)}
-                        })
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {"url": image2base64(img)}
+                    })
             else:
                 content.append({
                     "type": "image_url",

@@ -414,8 +414,11 @@ def run_ask_chatgpt(query, frame):
     msg = {
         "clientID": frame.client_id,
         "type": "LLMReply",
-        "content": llm_reply,
-        "timestamp": frame.timestamp
+        "content": {
+            "reply": llm_reply,
+            "stepCompleted": False,
+        },
+        "timestamp": frame.timestamp,
     }
     logger.info(llm_reply)
     msg_queue.put(msg)
