@@ -70,8 +70,7 @@ public class ServerCommunication : MonoBehaviour
             Debug.Log("Sending POST LOGIN request");
             _webRequestManager.HttpPost(_serverUri + "/login", string.Empty, (AsyncOperation asyncOp) =>
             {
-                UnityWebRequestAsyncOperation webRequestAsyncOp = asyncOp as UnityWebRequestAsyncOperation;
-                if (webRequestAsyncOp == null)
+                if (asyncOp is not UnityWebRequestAsyncOperation webRequestAsyncOp)
                 {
                     Debug.LogError("WebRequest is NULL");
                     OnLoginAnswer?.Invoke(false);

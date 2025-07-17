@@ -10,7 +10,7 @@ public class XAIRClient : Singleton<XAIRClient>
 {
     [Header("Server Settings")]
     [SerializeField]
-    private string ipAddress = "12.0.0.1";
+    private string ipAddress = "127.0.0.1";
     [SerializeField]
     private string port = "8000";
     [SerializeField]
@@ -62,20 +62,22 @@ public class XAIRClient : Singleton<XAIRClient>
         }
 
         Matrix4x4 matrix;
-        matrix.m00 = values[0];  matrix.m01 = values[1];  matrix.m02 = values[2];  matrix.m03 = values[3];
-        matrix.m10 = values[4];  matrix.m11 = values[5];  matrix.m12 = values[6];  matrix.m13 = values[7];
-        matrix.m20 = values[8];  matrix.m21 = values[9];  matrix.m22 = values[10]; matrix.m23 = values[11];
+        matrix.m00 = values[0]; matrix.m01 = values[1]; matrix.m02 = values[2]; matrix.m03 = values[3];
+        matrix.m10 = values[4]; matrix.m11 = values[5]; matrix.m12 = values[6]; matrix.m13 = values[7];
+        matrix.m20 = values[8]; matrix.m21 = values[9]; matrix.m22 = values[10]; matrix.m23 = values[11];
         matrix.m30 = values[12]; matrix.m31 = values[13]; matrix.m32 = values[14]; matrix.m33 = values[15];
 
         return matrix;
     }
 
-    void Start() {
+    void Start()
+    {
         _serverUri = noSSL ? "http://" : "https://" + ipAddress + ":" + port;
         Debug.Log("XAIRClient starting at " + _serverUri);
 
         // "origin"
-        if (enableDebug) {
+        if (enableDebug)
+        {
             GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             marker.transform.localPosition = new Vector3(0.0f, 1.6f, 0.0f);
             marker.transform.localScale = new Vector3(0.02f, 0.02f, 0.02f);
@@ -104,7 +106,7 @@ public class XAIRClient : Singleton<XAIRClient>
         }
 
         _sendImagetimer += Time.deltaTime;
-        if (_sendImagetimer >= 1.0f/ _sendImageFreqHz)
+        if (_sendImagetimer >= 1.0f / _sendImageFreqHz)
         {
             _sendImagetimer = 0.0f;
             _mediaManager.GetImage(
@@ -121,7 +123,8 @@ public class XAIRClient : Singleton<XAIRClient>
         }
     }
 
-    private void PlayDing() {
+    private void PlayDing()
+    {
         if (dingSource != null)
         {
             dingSource.Play();
@@ -176,7 +179,8 @@ public class XAIRClient : Singleton<XAIRClient>
                 UpdateLLMResponseText(llmReply);
             }
             else
-            if (msgType == "objectDetections") {
+            if (msgType == "objectDetections")
+            {
                 // parse json
                 uint imageWidth = uint.Parse(jsonObj["imageWidth"].ToString());
                 uint imageHeight = uint.Parse(jsonObj["imageHeight"].ToString());
@@ -258,7 +262,8 @@ public class XAIRClient : Singleton<XAIRClient>
                         marker.GetComponent<Renderer>().material = transparentMat;
                         activeObjects.Add(marker);
 
-                        if (enableDebug) {
+                        if (enableDebug)
+                        {
                             Vector3 cameraPositionWorld = cameraToWorldMatrix.GetColumn(3);
                             LineRenderer lr = new GameObject("RayLine").AddComponent<LineRenderer>();
                             lr.positionCount = 2;
@@ -285,7 +290,7 @@ public class XAIRClient : Singleton<XAIRClient>
         return new Vector2(x, y);
     }
 
-    private bool RaycastToMesh(Vector2 pixelCoords, Vector2 imageDimensions, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics , Matrix4x4 distortion, out Vector3 hitPoint)
+    private bool RaycastToMesh(Vector2 pixelCoords, Vector2 imageDimensions, Matrix4x4 cameraToWorldMatrix, Matrix4x4 instrinsics, Matrix4x4 distortion, out Vector3 hitPoint)
     {
         float fx = instrinsics.m00;
         float fy = instrinsics.m11;

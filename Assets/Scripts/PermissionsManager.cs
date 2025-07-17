@@ -6,11 +6,10 @@ using UnityEngine.Android;
 public class PermissionsManager : MonoBehaviour
 {
     [SerializeField]
-    private List<string> _requiredPermissions = new List<string> { Permission.Microphone, Permission.Camera, Permissions.SpatialMapping };
+    private List<string> _requiredPermissions = new() { Permission.Microphone, Permission.Camera, Permissions.SpatialMapping };
 
     public bool PermissionsGranted => Permissions.CheckPermission(Permission.Microphone)
                                       && Permissions.CheckPermission(Permission.Camera);
-
     private void OnValidate()
     {
         // Ensure that the required permissions list contains Microphone and Camera permissions

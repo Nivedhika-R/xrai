@@ -16,7 +16,7 @@ public class MicrophoneManager : MonoBehaviour
 
     // Magic Leap 2 Microphone defaults
     private const int MIC_LENGTH = 1; // Seconds
-    private const int MIC_SAMPLING_FREQ = 96000;
+    private const int MIC_SAMPLING_FREQ = 44100;
     private const int MICROPHONE_INDEX = 0;
 
     public AudioSource SourceAudio => _sourceAudio;
@@ -66,7 +66,6 @@ public class MicrophoneManager : MonoBehaviour
         }
 
         _microphoneName = Microphone.devices.Length > MICROPHONE_INDEX ? Microphone.devices[MICROPHONE_INDEX] : null;
-
         if (string.IsNullOrEmpty(_microphoneName))
         {
             Debug.LogError("No microphone devices found.");
@@ -77,7 +76,6 @@ public class MicrophoneManager : MonoBehaviour
 
         Microphone.GetDeviceCaps(_microphoneName, out int minFreq, out int maxFreq);
         var micClip = Microphone.Start(_microphoneName, true, MIC_LENGTH, MIC_SAMPLING_FREQ);
-
 
         // Wait until the microphone starts recording
         yield return new WaitUntil(() => Microphone.GetPosition(_microphoneName) > 0);

@@ -18,8 +18,8 @@ import functools
 whisper.torch.load = functools.partial(whisper.torch.load, weights_only=True)
 
 logger.info("Loading Whisper model...")
-model_name = "medium"
-audio_model = None#whisper.load_model(model_name + ".en")
+model_name = "base"
+audio_model = whisper.load_model(model_name + ".en")
 logger.info("Whisper model ready!")
 
 class WhisperProcessor:
@@ -37,7 +37,6 @@ class WhisperProcessor:
     def run(self):
         while True:
             now = datetime.now(timezone.utc)
-
             if not self.data_queue.empty():
                 phrase_complete = False
 
@@ -78,12 +77,12 @@ class RemoteAudioToWhisper(MediaStreamTrack):
         self.debug = False
 
         self.whisper_processor = WhisperProcessor()
-        # self.whisper_thread = Thread(target=self.whisper_processor.run, daemon=True)
-        # self.whisper_thread.start()
+        self.whisper_thread = Thread(target=self.whisper_processor.run, daemon=True)
+        self.whisper_thread.start()
 
         self.sample_rate = 16000 # Whisper has a sample rate of 16000
         self.resampler = AudioResampler(
-            format='s16',
+            format='s16p',
             layout='mono',
             rate=self.sample_rate
         )
@@ -96,11 +95,14 @@ class RemoteAudioToWhisper(MediaStreamTrack):
             )
 
     async def recv(self):
+        # print("Receiving audio frame...")
         if self.stopped:
             raise asyncio.CancelledError("Audio track stopped.")
 
         try:
+            # print("Waiting for audio frame...")
             frame = await self.track.recv()
+            # print("Received audio frame.")
         except Exception as e:
             logger.warning(f"recv() failed or stopped: {e}")
             raise asyncio.CancelledError()

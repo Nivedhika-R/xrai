@@ -14,6 +14,4 @@ public interface ICameraDeviceManager
 
     public void StartMedia();
     public void StopMedia();
-
-
 }

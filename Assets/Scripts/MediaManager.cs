@@ -93,7 +93,7 @@ public class MediaManager : Singleton<MediaManager>
                 && _targetCameraDeviceManager.IsConfiguredAndReady
                 && _microphoneManager.IsConfiguredAndReady;
         if (res) {
-            Debug.Log($" Camera Device Ready = {_targetCameraDeviceManager.IsConfiguredAndReady} && Microphone Ready = {_microphoneManager.IsConfiguredAndReady} ");
+            Debug.Log($"Camera Device Ready = {_targetCameraDeviceManager.IsConfiguredAndReady} && Microphone Ready = {_microphoneManager.IsConfiguredAndReady} ");
         }
 
         return res;

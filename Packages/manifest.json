@@ -6,6 +6,13 @@
       "scopes": [
         "com.magicleap"
       ]
+    },
+    {
+      "name": "package.openupm.com",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "org.nesnausk.gaussian-splatting"
+      ]
     }
   ],
   "dependencies": {
@@ -16,6 +23,7 @@
     "com.unity.ide.rider": "3.0.34",
     "com.unity.ide.visualstudio": "2.0.22",
     "com.unity.ide.vscode": "1.2.5",
+    "com.unity.mobile.android-logcat": "1.4.5",
     "com.unity.render-pipelines.universal": "14.0.12",
     "com.unity.test-framework": "1.1.33",
     "com.unity.textmeshpro": "3.0.7",
