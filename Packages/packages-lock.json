@@ -38,6 +38,12 @@
       },
       "url": "https://registry.npmjs.org"
     },
+    "com.merry-yellow.code-assist": {
+      "version": "file:com.merry-yellow.code-assist",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.microsoft.mrtk.graphicstools.unity": {
       "version": "0.8.0",
       "depth": 0,

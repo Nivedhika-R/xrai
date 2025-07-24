@@ -82,8 +82,8 @@ from threading import Thread
 from openai import OpenAI
 from logger import logger
 from constants import *
-from utils import image2base64, image2base64_ollama
-from ollama import chat
+from utils import image2base64
+
 
 class ChatGPTHelper:
     def __init__(self, model="gpt-4.1"):
@@ -138,20 +138,6 @@ class ChatGPTHelper:
 
 
 
-    def ask_ollama(self, question, image=None):
-        image_bytes = []
-        for img in image:
-            image_bytes.append(image2base64_ollama(img))
+    
 
-        response = chat(
-            model='llava',
-            messages=[
-                {
-                    'role': 'user',
-                    'content': question,
-                    'images': image_bytes,
-                }
-            ],
-        )
-
-        return response.message.content
+        

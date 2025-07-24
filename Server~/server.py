@@ -9,7 +9,7 @@ import logging
 
 from threading import Thread
 from queue import Queue
-from collections import deque
+from collections import deque, namedtuple
 
 import cv2
 from PIL import Image, ImageEnhance
@@ -23,11 +23,11 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 
 from logger import logger
 from constants import *
-from chatgpt_helper import ChatGPTHelper
-from whisper_helper import RemoteAudioToWhisper
-from yolo_helper import YoloHelper
+# from chatgpt_helper import ChatGPTHelper
+# from whisper_helper import RemoteAudioToWhisper
+# from yolo_helper import YoloHelper
 from frame import Frame
-from tutorial_follower import TutorialFollower
+# from tutorial_follower import TutorialFollower
 from board_tracker import BoardTracker
 from debugger import Debugger
 
@@ -41,17 +41,16 @@ recorders = {}  # client_id: MediaRecorder
 ices = defaultdict(list)
 
 msg_queue = Queue()
-frame_deque = deque()
+image_bgr = deque()
 
-chatgpt = ChatGPTHelper()
+# chatgpt = ChatGPTHelper()
 board_tracker = BoardTracker()
 
-yolo = None
-tutorial_follower = None
-llm_reply = None
-llm_images = []
+# yolo = None
+#tutorial_follower = None
+# llm_reply = None
+# llm_images = []
 debugger = None
-
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -65,44 +64,44 @@ async def cors_middleware(request, handler):
 
 # GET /latest-frame
 async def get_latest_frame(request):
-    global frame_deque
-    if len(frame_deque) == 0:
+    global image_bgr
+    if len(image_bgr) == 0:
         return web.json_response({"image": None})
 
-    frame = frame_deque[-1]
-    logger.debug("Sending latest frame to client %s", frame.client_id)
-    image_with_bboxes = draw_yolo_response(frame)
-    _, buffer = cv2.imencode('.jpg', image_with_bboxes)
+    frame = image_bgr[-1]
+    # logger.debug("Sending latest frame to client %s", frame.client_id)
+    # image_with_bboxes = draw_yolo_response(frame)
+    _, buffer = cv2.imencode('.jpg', image_bgr)
     frame_base64 = base64.b64encode(buffer).decode('utf-8')
     return web.json_response({"image": frame_base64})
 
 # GET /llm-response
-async def get_llm_response(request):
-    global llm_reply
-    return web.json_response({"llm_response": llm_reply})
+# async def get_llm_response(request):
+#     global llm_reply
+#     return web.json_response({"llm_response": llm_reply})
 
 # GET /llm-images
-async def get_llm_images(request):
-    llm_images = tutorial_follower.get_images()
-    if len(llm_images) == 0:
-        return web.json_response({"user_image": None, "sample_image": None})
+# async def get_llm_images(request):
+#     llm_images = tutorial_follower.get_images()
+#     if len(llm_images) == 0:
+#         return web.json_response({"user_image": None, "sample_image": None})
 
-    elif len(llm_images) == 1:
-        logger.debug("Only 1 llm_images, something is wrong!")
-        return web.json_response({"user_image": None, "sample_image": None})
+#     elif len(llm_images) == 1:
+#         logger.debug("Only 1 llm_images, something is wrong!")
+#         return web.json_response({"user_image": None, "sample_image": None})
 
     # assert len(llm_images) == 2, "llm_images should be of length 2" # TODO: remove later
     # logger.debug(f"Sending {len(llm_images)}llm_images to client")\
 
-    response_data = {}
-    _, buffer1 = cv2.imencode('.jpg', llm_images[0])
-    response_data["user_image"] = base64.b64encode(buffer1).decode('utf-8')
-    _, buffer2 = cv2.imencode('.jpg', llm_images[1])
-    response_data["yolo_image"] = base64.b64encode(buffer2).decode('utf-8')
-    _, buffer3 = cv2.imencode('.jpg', llm_images[2])
-    response_data["sample_image"] = base64.b64encode(buffer3).decode('utf-8')
+    # response_data = {}
+    # _, buffer1 = cv2.imencode('.jpg', llm_images[0])
+    # response_data["user_image"] = base64.b64encode(buffer1).decode('utf-8')
+    # _, buffer2 = cv2.imencode('.jpg', llm_images[1])
+    # response_data["yolo_image"] = base64.b64encode(buffer2).decode('utf-8')
+    # _, buffer3 = cv2.imencode('.jpg', llm_images[2])
+    # response_data["sample_image"] = base64.b64encode(buffer3).decode('utf-8')
 
-    return web.json_response(response_data)
+    # return web.json_response(response_data)
 
 # POST /login
 async def login(request):
@@ -171,9 +170,9 @@ async def post_offer(request):
             logger.info("Receiving video from client (we dont send video so we should never get here...)")
         elif track.kind == "audio":
             logger.info("Receiving audio from client!")
-            audio_reader = RemoteAudioToWhisper(track)
-            consume_task = asyncio.create_task(dummy_consume(audio_reader))
-            consume_tasks[client_id] = consume_task
+            # audio_reader = RemoteAudioToWhisper(track)
+            # consume_task = asyncio.create_task(dummy_consume(audio_reader))
+            # consume_tasks[client_id] = consume_task
 
     @pc.on("datachannel")
     def on_datachannel(channel):
@@ -295,9 +294,12 @@ async def get_offers(request):
 async def get_answers(request):
     return web.json_response(created_answers)
 
+Frame = namedtuple("Frame", ["client_id","image","cam","proj","dist","ts"])
+frame_buffers = defaultdict(list)
+
 # POST /post_image/{id}
 async def post_image(request):
-    global frame_deque
+    global image_bgr
 
     client_id = request.match_info["id"]
     try:
@@ -332,8 +334,12 @@ async def post_image(request):
         image = ImageEnhance.Contrast(image).enhance(1.5) # increase contrast
         image_rgb = np.array(image)
         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+        cv2.imwrite("text.png", image_bgr)
 
-        frame_deque.append(Frame(client_id, image_bgr, cam_mat, proj_mat, dist_mat, timestamp))
+        frame_buffers[client_id].append(
+            Frame(client_id, image_bgr, cam_mat, proj_mat, dist_mat, timestamp)
+        )
+        # image_bgr.append(Frame(client_id, image_bgr, cam_mat, proj_mat, dist_mat, timestamp))
         logger.debug("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
 
@@ -375,147 +381,147 @@ async def on_shutdown(app):
     consume_tasks.clear()
 
 def handle_images():
-    global frame_deque, msg_queue
+    global image_bgr, msg_queue
     # Start the tutorial follower thread
-    if args.instruct:
-        tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
-        tutorial_thread.start()
-        debug_thread = Thread(target=debugger.start, daemon=True)
-        debug_thread.start()
+    # if args.instruct:
+        # tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
+        # tutorial_thread.start()
+        # debug_thread = Thread(target=debugger.start, daemon=True)
+        # debug_thread.start()
     while True:
         try:
             if args.instruct:
-                if len(frame_deque) == 0:
+                if len(image_bgr) == 0:
                     time.sleep(0.1)
                     continue
 
-                frame = frame_deque[-1]
-                run_object_detection(frame)
-                ask_tutorial(frame)
+                frame = image_bgr[-1]
+                # run_object_detection(frame)
+                # ask_tutorial(frame)
             else:
-                if len(frame_deque) == 0:
+                if len(image_bgr) == 0:
                     time.sleep(0.1)
                     continue
 
-                frame = frame_deque[-1]
-                # frame_deque.clear()
-                if frame.img is None:
+                frame = image_bgr[-1]
+                # image_bgr.clear()
+                if image_bgr is None:
                     break
-                run_object_detection(frame) # run YOLO
-                run_ask_chatgpt("What am I looking at?", frame) # ask ChatGPT
+                # run_object_detection(frame) # run YOLO
+                # run_ask_chatgpt("What am I looking at?", frame) # ask ChatGPT
         except Exception as e:
             logger.error(f"handle_images encountered an error: {e}", exc_info=True)
             continue
 
-def run_ask_chatgpt(query, frame):
-    global llm_reply
-    # ask ChatGPT
-    llm_reply = chatgpt.ask(query, image=frame.img)
-    msg = {
-        "clientID": frame.client_id,
-        "type": "LLMReply",
-        "content": {
-            "reply": llm_reply,
-            "stepCompleted": False, #not relevant
-        },
-        "timestamp": frame.timestamp
-    }
-    logger.info(llm_reply)
-    msg_queue.put(msg)
+# def run_ask_chatgpt(query, frame):
+#     global llm_reply
+#     # ask ChatGPT
+#     llm_reply = chatgpt.ask(query, image=frame.img)
+#     msg = {
+#         "clientID": frame.client_id,
+#         "type": "LLMReply",
+#         "content": {
+#             "reply": llm_reply,
+#             "stepCompleted": False, #not relevant
+#         },
+#         "timestamp": frame.timestamp
+#     }
+#     logger.info(llm_reply)
+#     msg_queue.put(msg)
 
-def ask_tutorial(frame):
-    global llm_reply
-    tutorial_answer = tutorial_follower.get_answer()
-    if tutorial_answer is None:
-        return
+# def ask_tutorial(frame):
+#     global llm_reply
+#     tutorial_answer = tutorial_follower.get_answer()
+#     if tutorial_answer is None:
+#         return
 
-    llm_reply = tutorial_answer
-    tutorial_follower.clear_answer()
-    msg = {
-        "clientID": frame.client_id,
-        "type": "LLMReply",
-        "content": {
-            "reply": llm_reply,
-            "stepCompleted": "step completed" in llm_reply.lower(),
-        },
-        "timestamp": frame.timestamp,
-    }
-    msg_queue.put(msg)
+#     llm_reply = tutorial_answer
+#     tutorial_follower.clear_answer()
+#     msg = {
+#         "clientID": frame.client_id,
+#         "type": "LLMReply",
+#         "content": {
+#             "reply": llm_reply,
+#             "stepCompleted": "step completed" in llm_reply.lower(),
+#         },
+#         "timestamp": frame.timestamp,
+#     }
+#     msg_queue.put(msg)
 
-def draw_yolo_response(frame):
-    object_labels = []
-    object_centers = []
-    object_confidences = []
-    yolo_results = yolo.predict(frame.img)
-    for result in yolo_results:
-        if args.instruct and result["class_name"] not in tutorial_follower.get_current_objects():
-            continue
-        object_labels.append(result["class_name"])
-        bbox = result["bbox"]
-        x1, y1, x2, y2 = bbox
-        center_x = (x1 + x2) / 2
-        center_y = (y1 + y2) / 2
-        object_centers.append((center_x, frame.img.shape[0] - center_y))
-        object_confidences.append(result["confidence"])
+#  def draw_yolo_response(frame):
+#     object_labels = []
+#     object_centers = []
+#     object_confidences = []
+#     yolo_results = yolo.predict(frame.img)
+#     for result in yolo_results:
+#         if args.instruct and result["class_name"] not in tutorial_follower.get_current_objects():
+#             continue
+#         object_labels.append(result["class_name"])
+#         bbox = result["bbox"]
+#         x1, y1, x2, y2 = bbox
+#         center_x = (x1 + x2) / 2
+#         center_y = (y1 + y2) / 2
+#         object_centers.append((center_x, frame.img.shape[0] - center_y))
+#         object_confidences.append(result["confidence"])
 
-    frame_img = frame.img.copy()
-    for result in yolo_results:
-        bbox = result["bbox"]
-        x1, y1, x2, y2 = bbox
-        cv2.rectangle(frame_img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-        cv2.putText(frame_img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+#     frame_img = frame.img.copy()
+#     for result in yolo_results:
+#         bbox = result["bbox"]
+#         x1, y1, x2, y2 = bbox
+#         cv2.rectangle(frame_img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+#         cv2.putText(frame_img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    return frame_img
+#     return frame_img
 
-def run_object_detection(frame):
-    object_labels = []
-    object_centers = []
-    object_confidences = []
-    yolo_results = yolo.predict(frame.img)
-    for result in yolo_results:
-        if args.instruct and (result["class_name"] not in tutorial_follower.get_current_objects()):
-            continue
-        object_labels.append(display_labels[result["class_name"]])
-        bbox = result["bbox"]
-        x1, y1, x2, y2 = bbox
-        center_x = (x1 + x2) / 2
-        center_y = (y1 + y2) / 2
-        object_centers.append((center_x, frame.img.shape[0] - center_y + 71)) # added the +71 bc hit testing results seemed to be off a little
-        object_confidences.append(result["confidence"])
+# def run_object_detection(frame):
+#     object_labels = []
+#     object_centers = []
+#     object_confidences = []
+#     yolo_results = yolo.predict(frame.img)
+#     for result in yolo_results:
+#         if args.instruct and (result["class_name"] not in tutorial_follower.get_current_objects()):
+#             continue
+#         object_labels.append(display_labels[result["class_name"]])
+#         bbox = result["bbox"]
+#         x1, y1, x2, y2 = bbox
+#         center_x = (x1 + x2) / 2
+#         center_y = (y1 + y2) / 2
+#         object_centers.append((center_x, frame.img.shape[0] - center_y + 71)) # added the +71 bc hit testing results seemed to be off a little
+#         object_confidences.append(result["confidence"])
 
-    # # save image to disk (to debug)
-    # os.makedirs("images", exist_ok=True)
-    # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
-    # # draw bounding boxes
-    # for result in yolo_results:
-    #     bbox = result["bbox"]
-    #     x1, y1, x2, y2 = bbox
-    #     cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-    #     cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+#     # # save image to disk (to debug)
+#     # os.makedirs("images", exist_ok=True)
+#     # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
+#     # # draw bounding boxes
+#     # for result in yolo_results:
+#     #     bbox = result["bbox"]
+#     #     x1, y1, x2, y2 = bbox
+#     #     cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+#     #     cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    # # save the image
-    # logger.warning("Saving image to %s", img_path)
-    # cv2.imwrite(img_path, frame.img)
+#     # # save the image
+#     # logger.warning("Saving image to %s", img_path)
+#     # cv2.imwrite(img_path, frame.img)
 
-    # if len(object_labels) == 0:
-    #     return
+#     # if len(object_labels) == 0:
+#     #     return
 
-    msg = {
-        "clientID": frame.client_id,
-        "type": "objectDetections",
-        "content": {
-            "labels": object_labels,
-            "centers": object_centers,
-            "confidences": object_confidences,
-        },
-        "imageWidth": frame.img.shape[1],
-        "imageHeight": frame.img.shape[0],
-        "timestamp": frame.timestamp,
-        "extrinsics": frame.cam_mat.flatten().tolist(),
-        "instrinsics": frame.proj_mat.flatten().tolist(),
-        "distortion": frame.dist_mat.flatten().tolist()
-    }
-    msg_queue.put(msg)
+#     msg = {
+#         "clientID": frame.client_id,
+#         "type": "objectDetections",
+#         "content": {
+#             "labels": object_labels,
+#             "centers": object_centers,
+#             "confidences": object_confidences,
+#         },
+#         "imageWidth": frame.img.shape[1],
+#         "imageHeight": frame.img.shape[0],
+#         "timestamp": frame.timestamp,
+#         "extrinsics": frame.cam_mat.flatten().tolist(),
+#         "instrinsics": frame.proj_mat.flatten().tolist(),
+#         "distortion": frame.dist_mat.flatten().tolist()
+#     }
+#     msg_queue.put(msg)
 
 def run_server(args):
     # SSL Setup
@@ -536,8 +542,8 @@ def run_server(args):
     app.router.add_get("/answers", get_answers)
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
     app.router.add_get("/latest-frame", get_latest_frame)
-    app.router.add_get("/llm-response", get_llm_response)
-    app.router.add_get("/llm-images", get_llm_images)
+    # app.router.add_get("/llm-response", get_llm_response)
+    # app.router.add_get("/llm-images", get_llm_images)
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
 
@@ -552,7 +558,7 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbosity', type=int, default=2,
                         help='Set log level (0: ERROR, 1: WARNING, 2: INFO, 3: DEBUG)')
     parser.add_argument('--instruct', action='store_true', help='Enable instruction following')
-    parser.add_argument('--yolo-model', default='runs/detect/train_latest/best.pt', help='Path to YOLO model')
+    # parser.add_argument('--yolo-model', default='runs/detect/train_latest/best.pt', help='Path to YOLO model')
     args = parser.parse_args()
 
     verbosity_map = {
@@ -564,10 +570,10 @@ if __name__ == "__main__":
     log_level = verbosity_map.get(args.verbosity, logging.DEBUG)
     logger.setLevel(log_level)
 
-    yolo = YoloHelper(args.yolo_model)
-    if args.instruct:
-        tutorial_follower = TutorialFollower(frame_deque, yolo=yolo, board_tracker=board_tracker)
-        debugger = Debugger(tutorial_follower)
+    #yolo = YoloHelper(args.yolo_model)
+    # if args.instruct:
+    #     tutorial_follower = TutorialFollower(image_bgr, board_tracker=board_tracker)
+    #     debugger = Debugger(tutorial_follower)
 
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
