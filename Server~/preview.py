@@ -1,3 +1,4 @@
+from io import BytesIO
 import requests
 import numpy as np
 import cv2
@@ -21,6 +22,7 @@ def fetch_latest_frame():
         img_np = np.frombuffer(img_bytes, np.uint8)
         img_cv2 = cv2.imdecode(img_np, cv2.IMREAD_COLOR)
         img_rgb = cv2.cvtColor(img_cv2, cv2.COLOR_BGR2RGB)
+        print("HERE")
 
         return Image.fromarray(img_rgb)
     except Exception as e:
@@ -81,23 +83,63 @@ def live_stream():
          frame = fetch_latest_frame()
          #text = fetch_latest_text()
          #user_image, yolo_image, sample_image = fetch_llm_images()
-         yield frame
-         # time.sleep(0.05)  # Poll every 100ms
+         time.sleep(0.05)  # Poll every 100ms
+         yield frame,frame
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="XaiR Preview Window.")
     parser.add_argument('--ip', default='127.0.0.1', help='IP address to bind to')
     args = parser.parse_args()
 
-    SERVER_URL = f"https://{args.ip}:8000"  # Or http://localhost:8000 if no SSL
+    SERVER_URL = f"https://{args.ip}:7860"  # Or http://localhost:8000 if no SSL
     VERIFY_SSL = False  # Set to False if using self-signed certs
 
     with gr.Blocks(css=".big-textbox textarea {font-size: 18px !important;}") as demo:
+
+        demo.queue()
+
+        test_img = gr.Image(type="pil", label="Fetch Test Result")
+        test_btn = gr.Button("Fetch Latest Frame")
+        test_btn.click(fn=fetch_latest_frame, inputs=None, outputs=test_img)
         # add text title
         gr.Markdown("<h1 style='text-align: center;'>XaiR Preview Window</h1>")
 
-        gr.Markdown("<h2 style='text-align: left;'>Live Stream w/ Obj Detection:</h2>")
-        image_display = gr.Image(type="pil", show_label=False)
+        #cOMMRNTED THE 2 LINES BELOW FOR ANNOTATION
+        #gr.Markdown("<h2 style='text-align: left;'>Live Stream w/ Obj Detection:</h2>")
+        # image_display = gr.Image(type="pil", show_label=False)
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("### Live Stream Feed")
+                live_display = gr.Image(type="pil", interactive=False, show_label=False)
+
+                capture_btn = gr.Button("Capture Frame")
+
+            with gr.Column():
+                gr.Markdown("### Draw/Click to Annotate")
+                annotator = gr.ImageEditor(
+                    type = "pil",
+                    brush=gr.Brush(),
+                    show_label = False,
+                    interactive = True,
+                )
+
+            #continuosly update the live_display with the latest frame
+            demo.load(fn=live_stream, inputs=None, outputs=[live_display])  # Update every 50ms
+
+            #when the aid clicks on the live_display, push that single frame into annotator
+            capture_btn.click(fn=lambda img: img, inputs=live_display, outputs=annotator)
+
+            def send_annotation(annotated_img):
+                buffered = BytesIO()
+                annotated_img.save(buffered, format="PNG")
+                b64 = base64.b64encode(buffered.getvalue()).decode()
+                requests.post(f"{SERVER_URL}/submit_annotation", json={"image": b64}, verify=VERIFY_SSL)
+                return "Annotation sent!"
+
+            send_btn = gr.Button("Save & Send Annotation")
+            result_txt = gr.Textbox(interactive=False)
+            send_btn.click(fn=send_annotation, inputs=[annotator], outputs=[result_txt])
+        #gr.Markdown("<h2 style='text-align: left;'>Annotated Image w/ Obj Detection [Sent to LLM]:</h2>"
 
         # with gr.Row():
         #     with gr.Column(scale = 1):
@@ -119,6 +161,6 @@ if __name__ == "__main__":
         #         #increase font size of textbox
         #         text_display = gr.Textbox( lines=5, max_lines=8, interactive=False, show_label = False, elem_classes="big-textbox")
 
-        demo.load(live_stream, [], [image_display])
+        #demo.load(fn=live_stream, inputs=None, outputs=[live_display])
     demo.queue()
-    demo.launch(server_name="127.0.0.1", server_port=7861, share=False)
+    demo.launch(server_name="127.0.0.1", server_port=7860, share=False)

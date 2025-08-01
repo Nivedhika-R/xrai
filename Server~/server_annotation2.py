@@ -484,6 +484,84 @@ async def on_shutdown(app):
 #     }
 #     msg_queue.put(msg)
 
+
+# POST /submit-annotation
+# Replace your submit_annotation function with this simplified version
+
+# POST /submit-annotation
+async def submit_annotation(request):
+    try:
+        data = await request.json()
+        base64_str = data.get("image")
+        coordinates = data.get("coordinates", [])
+
+        if not base64_str:
+            return web.Response(status=400, text="Missing image data")
+
+        # Decode and save the annotated image for debugging
+        image_bytes = base64.b64decode(base64_str)
+        image = Image.open(BytesIO(image_bytes))
+        image_rgb = np.array(image)
+
+        # Save annotated image
+        timestamp = int(time.time())
+        filename = f"annotated_image_{timestamp}.png"
+        cv2.imwrite(filename, cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR))
+
+        # Simplify coordinates - get only key points
+        if coordinates:
+            # Get key summary points instead of all points
+            x_coords = [c[0] for c in coordinates]
+            y_coords = [c[1] for c in coordinates]
+
+            # Key points: center, corners of bounding box, and a few sample points
+            min_x, max_x = min(x_coords), max(x_coords)
+            min_y, max_y = min(y_coords), max(y_coords)
+            center_x = (min_x + max_x) // 2
+            center_y = (min_y + max_y) // 2
+
+            key_points = {
+                "center": [center_x, center_y],
+                "top_left": [min_x, min_y],
+                "top_right": [max_x, min_y],
+                "bottom_left": [min_x, max_y],
+                "bottom_right": [max_x, max_y],
+                "bounding_box": {
+                    "width": max_x - min_x,
+                    "height": max_y - min_y,
+                    "area": (max_x - min_x) * (max_y - min_y)
+                }
+            }
+
+            # Print only the essential coordinates
+            logger.info("=" * 40)
+            logger.info("📍 ANNOTATION SUMMARY")
+            logger.info("=" * 40)
+            logger.info(f"📁 Saved: {filename}")
+            logger.info(f"📊 Total points detected: {len(coordinates)}")
+            logger.info(f"🎯 CENTER: ({center_x}, {center_y})")
+            logger.info(f"📦 BOUNDING BOX:")
+            logger.info(f"   Top-left: ({min_x}, {min_y})")
+            logger.info(f"   Bottom-right: ({max_x}, {max_y})")
+            logger.info(f"   Size: {max_x - min_x} x {max_y - min_y} pixels")
+            logger.info("=" * 40)
+
+        else:
+            key_points = {}
+            logger.info("⚠️  No annotation coordinates detected")
+
+        return web.json_response({
+            "status": "success",
+            "total_points": len(coordinates),
+            "key_points": key_points,
+            "message": f"Processed annotation with {len(coordinates)} points",
+            "saved_as": filename
+        })
+
+    except Exception as e:
+        logger.error("❌ Error processing annotation: %s", e)
+        return web.Response(status=500, text=f"Failed to process annotation: {e}")
+
 def run_server(args):
     # SSL Setup
     ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
@@ -499,6 +577,7 @@ def run_server(args):
     app.router.add_post(r"/post_ice/{id:\d+}", post_ice)
     app.router.add_post(r"/post_image/{id:\d+}", post_image)
     app.router.add_post(r"/consume_ices/{id:\d+}", consume_ices)
+    app.router.add_post("/submit-annotation", submit_annotation)
     app.router.add_get("/offers", get_offers)
     app.router.add_get("/answers", get_answers)
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
