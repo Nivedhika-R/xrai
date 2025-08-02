@@ -1,11 +1,18 @@
+<<<<<<< HEAD
 # Modified XaiR Server with Annotation Support
 
+=======
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 import os
 import ssl
 import time
 import json
 import asyncio
 import base64
+<<<<<<< HEAD
+=======
+
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 import argparse
 import logging
 
@@ -25,7 +32,15 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 
 from logger import logger
 from constants import *
+<<<<<<< HEAD
 from frame import Frame
+=======
+# from chatgpt_helper import ChatGPTHelper
+# from whisper_helper import RemoteAudioToWhisper
+# from yolo_helper import YoloHelper
+from frame import Frame
+# from tutorial_follower import TutorialFollower
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 from board_tracker import BoardTracker
 from debugger import Debugger
 
@@ -40,9 +55,20 @@ ices = defaultdict(list)
 
 msg_queue = Queue()
 image_bgr = deque()
+<<<<<<< HEAD
 latest_frame_data = None  # Store complete frame data including matrices
 
 board_tracker = BoardTracker()
+=======
+
+# chatgpt = ChatGPTHelper()
+board_tracker = BoardTracker()
+
+# yolo = None
+#tutorial_follower = None
+# llm_reply = None
+# llm_images = []
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 debugger = None
 
 @web.middleware
@@ -55,6 +81,7 @@ async def cors_middleware(request, handler):
     response.headers["Access-Control-Allow-Headers"] = "*"
     return response
 
+<<<<<<< HEAD
 # Frame data structure
 FrameData = namedtuple("FrameData", [
     "client_id", "image", "camera_matrix", "projection_matrix", 
@@ -113,12 +140,16 @@ def detect_annotations_in_image(original_image, annotated_image):
         return []
 
 # GET /latest-frame - FIXED VERSION
+=======
+# GET /latest-frame
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 async def get_latest_frame(request):
     global image_bgr
     if len(image_bgr) == 0:
         return web.json_response({"image": None})
 
     frame = image_bgr[-1]
+<<<<<<< HEAD
     # logger.debug("Sending latest frame to client")
     _, buffer = cv2.imencode('.jpg', frame)  # FIXED: use frame directly, not image_bgr
     frame_base64 = base64.b64encode(buffer).decode('utf-8')
@@ -234,12 +265,48 @@ async def submit_annotation(request):
     except Exception as e:
         logger.error(f"Error processing annotation: {e}")
         return web.json_response({"error": str(e)}, status=500)
+=======
+    # logger.debug("Sending latest frame to client %s", frame.client_id)
+    # image_with_bboxes = draw_yolo_response(frame)
+    _, buffer = cv2.imencode('.jpg', image_bgr)
+    frame_base64 = base64.b64encode(buffer).decode('utf-8')
+    return web.json_response({"image": frame_base64})
+
+# GET /llm-response
+# async def get_llm_response(request):
+#     global llm_reply
+#     return web.json_response({"llm_response": llm_reply})
+
+# GET /llm-images
+# async def get_llm_images(request):
+#     llm_images = tutorial_follower.get_images()
+#     if len(llm_images) == 0:
+#         return web.json_response({"user_image": None, "sample_image": None})
+
+#     elif len(llm_images) == 1:
+#         logger.debug("Only 1 llm_images, something is wrong!")
+#         return web.json_response({"user_image": None, "sample_image": None})
+
+    # assert len(llm_images) == 2, "llm_images should be of length 2" # TODO: remove later
+    # logger.debug(f"Sending {len(llm_images)}llm_images to client")\
+
+    # response_data = {}
+    # _, buffer1 = cv2.imencode('.jpg', llm_images[0])
+    # response_data["user_image"] = base64.b64encode(buffer1).decode('utf-8')
+    # _, buffer2 = cv2.imencode('.jpg', llm_images[1])
+    # response_data["yolo_image"] = base64.b64encode(buffer2).decode('utf-8')
+    # _, buffer3 = cv2.imencode('.jpg', llm_images[2])
+    # response_data["sample_image"] = base64.b64encode(buffer3).decode('utf-8')
+
+    # return web.json_response(response_data)
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 
 # POST /login
 async def login(request):
     global next_client_id
     client_id = next_client_id
     next_client_id += 1
+<<<<<<< HEAD
     
     # Enhanced logging
     print(f"\n🔥 LOGIN ATTEMPT DETECTED!")
@@ -249,6 +316,8 @@ async def login(request):
     print(f"🌐 Method: {request.method}")
     print("-" * 50)
     
+=======
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
     logger.info("User %s logged in from %s", client_id, request.remote)
     return web.Response(text=str(client_id))
 
@@ -278,6 +347,10 @@ async def logout(request):
         del recorders[client_id]
 
     ices.pop(client_id, None)
+<<<<<<< HEAD
+=======
+
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
     return web.Response(status=200)
 
 async def dummy_consume(track):
@@ -310,6 +383,12 @@ async def post_offer(request):
             logger.info("Receiving video from client (we dont send video so we should never get here...)")
         elif track.kind == "audio":
             logger.info("Receiving audio from client!")
+<<<<<<< HEAD
+=======
+            # audio_reader = RemoteAudioToWhisper(track)
+            # consume_task = asyncio.create_task(dummy_consume(audio_reader))
+            # consume_tasks[client_id] = consume_task
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 
     @pc.on("datachannel")
     def on_datachannel(channel):
@@ -431,12 +510,18 @@ async def get_offers(request):
 async def get_answers(request):
     return web.json_response(created_answers)
 
+<<<<<<< HEAD
 Frame = namedtuple("Frame", ["client_id","image","cam","proj","dist","ts"])
 frame_buffers = defaultdict(list)
 
 # POST /post_image/{id} - ENHANCED VERSION
 async def post_image(request):
     global image_bgr, latest_frame_data
+=======
+# POST /post_image/{id}
+async def post_image(request):
+    global image_bgr
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 
     client_id = request.match_info["id"]
     try:
@@ -450,6 +535,7 @@ async def post_image(request):
         instrinsics = data.get("instrinsics", [])
         distortion = data.get("distortion", [])
 
+<<<<<<< HEAD
         # Process camera matrices
         cam_mat = None
         proj_mat = None
@@ -459,10 +545,16 @@ async def post_image(request):
         if len(camera_to_world) == 16:
             values = list(map(float, camera_to_world))
             camera_to_world_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+=======
+        if len(camera_to_world) == 16:
+            values = list(map(float, camera_to_world))
+            cam_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 
         if len(instrinsics) == 16:
             values = list(map(float, instrinsics))
             proj_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+<<<<<<< HEAD
             
             # Extract camera matrix from projection matrix
             cam_mat = np.array([
@@ -471,6 +563,8 @@ async def post_image(request):
                 [0, 0, 1]
             ])
             
+=======
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
             if not board_tracker.params_initialized:
                 board_tracker.assign_camera_params(proj_mat[0][0], proj_mat[1][1], proj_mat[0][2], proj_mat[1][2])
 
@@ -484,6 +578,7 @@ async def post_image(request):
         image = ImageEnhance.Brightness(image).enhance(0.9) # decrease brightness
         image = ImageEnhance.Contrast(image).enhance(1.5) # increase contrast
         image_rgb = np.array(image)
+<<<<<<< HEAD
         image_bgr_current = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
         cv2.imwrite("text.png", image_bgr_current)
 
@@ -510,6 +605,11 @@ async def post_image(request):
         if len(image_bgr) > 10:
             image_bgr.popleft()
         
+=======
+        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+        cv2.imwrite("text.png", image_bgr)
+
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
         logger.debug("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
 
@@ -550,6 +650,7 @@ async def on_shutdown(app):
     recorders.clear()
     consume_tasks.clear()
 
+<<<<<<< HEAD
 def handle_images():
     global image_bgr, msg_queue
     while True:
@@ -576,6 +677,196 @@ def run_server(args):
             ssl_context.load_cert_chain(args.pem)
         except FileNotFoundError:
             logger.warning("SSL certificate not found, running without SSL")
+=======
+# def run_ask_chatgpt(query, frame):
+#     global llm_reply
+#     # ask ChatGPT
+#     llm_reply = chatgpt.ask(query, image=frame.img)
+#     msg = {
+#         "clientID": frame.client_id,
+#         "type": "LLMReply",
+#         "content": {
+#             "reply": llm_reply,
+#             "stepCompleted": False, #not relevant
+#         },
+#         "timestamp": frame.timestamp
+#     }
+#     logger.info(llm_reply)
+#     msg_queue.put(msg)
+
+# def ask_tutorial(frame):
+#     global llm_reply
+#     tutorial_answer = tutorial_follower.get_answer()
+#     if tutorial_answer is None:
+#         return
+
+#     llm_reply = tutorial_answer
+#     tutorial_follower.clear_answer()
+#     msg = {
+#         "clientID": frame.client_id,
+#         "type": "LLMReply",
+#         "content": {
+#             "reply": llm_reply,
+#             "stepCompleted": "step completed" in llm_reply.lower(),
+#         },
+#         "timestamp": frame.timestamp,
+#     }
+#     msg_queue.put(msg)
+
+#  def draw_yolo_response(frame):
+#     object_labels = []
+#     object_centers = []
+#     object_confidences = []
+#     yolo_results = yolo.predict(frame.img)
+#     for result in yolo_results:
+#         if args.instruct and result["class_name"] not in tutorial_follower.get_current_objects():
+#             continue
+#         object_labels.append(result["class_name"])
+#         bbox = result["bbox"]
+#         x1, y1, x2, y2 = bbox
+#         center_x = (x1 + x2) / 2
+#         center_y = (y1 + y2) / 2
+#         object_centers.append((center_x, frame.img.shape[0] - center_y))
+#         object_confidences.append(result["confidence"])
+
+#     frame_img = frame.img.copy()
+#     for result in yolo_results:
+#         bbox = result["bbox"]
+#         x1, y1, x2, y2 = bbox
+#         cv2.rectangle(frame_img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+#         cv2.putText(frame_img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+#     return frame_img
+
+# def run_object_detection(frame):
+#     object_labels = []
+#     object_centers = []
+#     object_confidences = []
+#     yolo_results = yolo.predict(frame.img)
+#     for result in yolo_results:
+#         if args.instruct and (result["class_name"] not in tutorial_follower.get_current_objects()):
+#             continue
+#         object_labels.append(display_labels[result["class_name"]])
+#         bbox = result["bbox"]
+#         x1, y1, x2, y2 = bbox
+#         center_x = (x1 + x2) / 2
+#         center_y = (y1 + y2) / 2
+#         object_centers.append((center_x, frame.img.shape[0] - center_y + 71)) # added the +71 bc hit testing results seemed to be off a little
+#         object_confidences.append(result["confidence"])
+
+#     # # save image to disk (to debug)
+#     # os.makedirs("images", exist_ok=True)
+#     # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
+#     # # draw bounding boxes
+#     # for result in yolo_results:
+#     #     bbox = result["bbox"]
+#     #     x1, y1, x2, y2 = bbox
+#     #     cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+#     #     cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+#     # # save the image
+#     # logger.warning("Saving image to %s", img_path)
+#     # cv2.imwrite(img_path, frame.img)
+
+#     # if len(object_labels) == 0:
+#     #     return
+
+#     msg = {
+#         "clientID": frame.client_id,
+#         "type": "objectDetections",
+#         "content": {
+#             "labels": object_labels,
+#             "centers": object_centers,
+#             "confidences": object_confidences,
+#         },
+#         "imageWidth": frame.img.shape[1],
+#         "imageHeight": frame.img.shape[0],
+#         "timestamp": frame.timestamp,
+#         "extrinsics": frame.cam_mat.flatten().tolist(),
+#         "instrinsics": frame.proj_mat.flatten().tolist(),
+#         "distortion": frame.dist_mat.flatten().tolist()
+#     }
+#     msg_queue.put(msg)
+
+
+# POST /submit-annotation
+async def submit_annotation(request):
+    try:
+        data = await request.json()
+        base64_str = data.get("image")
+        coordinates = data.get("coordinates", [])
+
+        if not base64_str:
+            return web.Response(status=400, text="Missing image data")
+
+        # Decode and save the annotated image for debugging
+        image_bytes = base64.b64decode(base64_str)
+        image = Image.open(BytesIO(image_bytes))
+        image_rgb = np.array(image)
+
+        # Save annotated image
+        timestamp = int(time.time())
+        filename = f"annotated_image_{timestamp}.png"
+        cv2.imwrite(filename, cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR))
+
+        # Simplify coordinates - get only key points
+        if coordinates:
+            # Get key summary points instead of all points
+            x_coords = [c[0] for c in coordinates]
+            y_coords = [c[1] for c in coordinates]
+
+            # Key points: center, corners of bounding box, and a few sample points
+            min_x, max_x = min(x_coords), max(x_coords)
+            min_y, max_y = min(y_coords), max(y_coords)
+            center_x = (min_x + max_x) // 2
+            center_y = (min_y + max_y) // 2
+
+            key_points = {
+                "center": [center_x, center_y],
+                "top_left": [min_x, min_y],
+                "top_right": [max_x, min_y],
+                "bottom_left": [min_x, max_y],
+                "bottom_right": [max_x, max_y],
+                "bounding_box": {
+                    "width": max_x - min_x,
+                    "height": max_y - min_y,
+                    "area": (max_x - min_x) * (max_y - min_y)
+                }
+            }
+
+            # Print only the essential coordinates
+            logger.info("=" * 40)
+            logger.info("📍 ANNOTATION SUMMARY")
+            logger.info("=" * 40)
+            logger.info(f"📁 Saved: {filename}")
+            logger.info(f"📊 Total points detected: {len(coordinates)}")
+            logger.info(f"🎯 CENTER: ({center_x}, {center_y})")
+            logger.info(f"📦 BOUNDING BOX:")
+            logger.info(f"   Top-left: ({min_x}, {min_y})")
+            logger.info(f"   Bottom-right: ({max_x}, {max_y})")
+            logger.info(f"   Size: {max_x - min_x} x {max_y - min_y} pixels")
+            logger.info("=" * 40)
+
+        else:
+            key_points = {}
+            logger.info("⚠️  No annotation coordinates detected")
+
+        return web.json_response({
+            "status": "success",
+            "total_points": len(coordinates),
+            "key_points": key_points,
+            "message": f"Processed annotation with {len(coordinates)} points",
+            "saved_as": filename
+        })
+
+    except Exception as e:
+        logger.error("❌ Error processing annotation: %s", e)
+        return web.Response(status=500, text=f"Failed to process annotation: {e}")
+def run_server(args):
+    # SSL Setup
+    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_context.load_cert_chain(args.pem)
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 
     app = web.Application(middlewares=[cors_middleware], client_max_size=10*1024**2)
 
@@ -587,10 +878,15 @@ def run_server(args):
     app.router.add_post(r"/post_ice/{id:\d+}", post_ice)
     app.router.add_post(r"/post_image/{id:\d+}", post_image)
     app.router.add_post(r"/consume_ices/{id:\d+}", consume_ices)
+<<<<<<< HEAD
+=======
+    app.router.add_post("/submit-annotation", submit_annotation)
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
     app.router.add_get("/offers", get_offers)
     app.router.add_get("/answers", get_answers)
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
     app.router.add_get("/latest-frame", get_latest_frame)
+<<<<<<< HEAD
     app.router.add_post("/submit-annotation", submit_annotation)  # NEW ANNOTATION ROUTE
     app.router.add_get("/test", lambda request: web.Response(text="🟢 Server is working! Time: " + str(time.time())))  # TEST ENDPOINT
     app.router.add_get("/debug", lambda request: web.Response(text=f"Server running on {args.ip}:{args.port}\nConnected clients: {len(pcs)}\nActive frames: {len(image_bgr)}"))
@@ -599,6 +895,14 @@ def run_server(args):
 
     logger.info(f"Starting XaiR Server on {args.ip}:{args.port}")
     web.run_app(app, host=args.ip, port=args.port, access_log=None, ssl_context=ssl_context)
+=======
+    # app.router.add_get("/llm-response", get_llm_response)
+    # app.router.add_get("/llm-images", get_llm_images)
+    app.router.add_get("/", root_redirect)
+    app.on_shutdown.append(on_shutdown)
+
+    web.run_app(app, host=args.ip, port=args.port, access_log=None, ssl_context=ssl_context if not args.no_ssl else None)
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="XaiR Server.")
@@ -609,6 +913,10 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbosity', type=int, default=2,
                         help='Set log level (0: ERROR, 1: WARNING, 2: INFO, 3: DEBUG)')
     parser.add_argument('--instruct', action='store_true', help='Enable instruction following')
+<<<<<<< HEAD
+=======
+    # parser.add_argument('--yolo-model', default='runs/detect/train_latest/best.pt', help='Path to YOLO model')
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
     args = parser.parse_args()
 
     verbosity_map = {
@@ -620,8 +928,17 @@ if __name__ == "__main__":
     log_level = verbosity_map.get(args.verbosity, logging.DEBUG)
     logger.setLevel(log_level)
 
+<<<<<<< HEAD
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
     display_thread.start()
 
     run_server(args)
+=======
+    #yolo = YoloHelper(args.yolo_model)
+    # if args.instruct:
+    #     tutorial_follower = TutorialFollower(image_bgr, board_tracker=board_tracker)
+    #     debugger = Debugger(tutorial_follower)
+
+    run_server(args)
+>>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8

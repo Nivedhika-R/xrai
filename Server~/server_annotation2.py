@@ -64,22 +64,17 @@ async def cors_middleware(request, handler):
     return response
 
 # GET /latest-frame
-# GET /latest-frame
 async def get_latest_frame(request):
     global image_bgr
-    if image_bgr is None or isinstance(image_bgr, deque) and len(image_bgr) == 0:
+    if len(image_bgr) == 0:
         return web.json_response({"image": None})
 
-    # Extract latest frame
-    if isinstance(image_bgr, deque):
-        frame_img = image_bgr[-1]
-    else:
-        frame_img = image_bgr
-
-    _, buffer = cv2.imencode('.jpg', frame_img)
+    frame = image_bgr[-1]
+    # logger.debug("Sending latest frame to client %s", frame.client_id)
+    # image_with_bboxes = draw_yolo_response(frame)
+    _, buffer = cv2.imencode('.jpg', image_bgr)
     frame_base64 = base64.b64encode(buffer).decode('utf-8')
     return web.json_response({"image": frame_base64})
-
 
 # GET /llm-response
 # async def get_llm_response(request):
@@ -379,65 +374,6 @@ async def on_shutdown(app):
     recorders.clear()
     consume_tasks.clear()
 
-<<<<<<< HEAD
-def handle_images():
-    global image_bgr, msg_queue
-    # Start the tutorial follower thread
-    # if args.instruct:
-        # tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
-        # tutorial_thread.start()
-        # debug_thread = Thread(target=debugger.start, daemon=True)
-        # debug_thread.start()
-    while True:
-        try:
-            if args.instruct:
-                if len(image_bgr) == 0:
-                    time.sleep(0.1)
-                    continue
-
-                frame = image_bgr[-1]
-                # run_object_detection(frame)
-                # ask_tutorial(frame)
-            else:
-                if len(image_bgr) == 0:
-                    time.sleep(0.1)
-                    continue
-
-                frame = image_bgr[-1]
-                # image_bgr.clear()
-                if image_bgr is None:
-                    break
-                # run_object_detection(frame) # run YOLO
-                # run_ask_chatgpt("What am I looking at?", frame) # ask ChatGPT
-        except Exception as e:
-            logger.error(f"handle_images encountered an error: {e}", exc_info=True)
-            continue
-
-# POST /submit-annotation
-async def submit_annotation(request):
-    try:
-        data = await request.json()
-        coordinates = data.get("coordinates", [])
-
-        if not coordinates:
-            return web.Response(status=400, text="No coordinates received")
-
-        print(f"[✔] Received annotation coordinates ({len(coordinates)} strokes):")
-        for i, stroke in enumerate(coordinates):
-            print(f"  Stroke {i+1}: {stroke}")
-
-        # Optionally store to a file for later processing
-        with open("annotation_coords.json", "w") as f:
-            json.dump(coordinates, f)
-
-        return web.Response(status=200, text="Coordinates received")
-    except Exception as e:
-        print("[❌] Failed to receive annotation coordinates:", e)
-        return web.Response(status=500, text="Server error")
-
-
-=======
->>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 # def run_ask_chatgpt(query, frame):
 #     global llm_reply
 #     # ask ChatGPT
@@ -548,12 +484,88 @@ async def submit_annotation(request):
 #     }
 #     msg_queue.put(msg)
 
+
+# POST /submit-annotation
+# Replace your submit_annotation function with this simplified version
+
+# POST /submit-annotation
+async def submit_annotation(request):
+    try:
+        data = await request.json()
+        base64_str = data.get("image")
+        coordinates = data.get("coordinates", [])
+
+        if not base64_str:
+            return web.Response(status=400, text="Missing image data")
+
+        # Decode and save the annotated image for debugging
+        image_bytes = base64.b64decode(base64_str)
+        image = Image.open(BytesIO(image_bytes))
+        image_rgb = np.array(image)
+
+        # Save annotated image
+        timestamp = int(time.time())
+        filename = f"annotated_image_{timestamp}.png"
+        cv2.imwrite(filename, cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR))
+
+        # Simplify coordinates - get only key points
+        if coordinates:
+            # Get key summary points instead of all points
+            x_coords = [c[0] for c in coordinates]
+            y_coords = [c[1] for c in coordinates]
+
+            # Key points: center, corners of bounding box, and a few sample points
+            min_x, max_x = min(x_coords), max(x_coords)
+            min_y, max_y = min(y_coords), max(y_coords)
+            center_x = (min_x + max_x) // 2
+            center_y = (min_y + max_y) // 2
+
+            key_points = {
+                "center": [center_x, center_y],
+                "top_left": [min_x, min_y],
+                "top_right": [max_x, min_y],
+                "bottom_left": [min_x, max_y],
+                "bottom_right": [max_x, max_y],
+                "bounding_box": {
+                    "width": max_x - min_x,
+                    "height": max_y - min_y,
+                    "area": (max_x - min_x) * (max_y - min_y)
+                }
+            }
+
+            # Print only the essential coordinates
+            logger.info("=" * 40)
+            logger.info("📍 ANNOTATION SUMMARY")
+            logger.info("=" * 40)
+            logger.info(f"📁 Saved: {filename}")
+            logger.info(f"📊 Total points detected: {len(coordinates)}")
+            logger.info(f"🎯 CENTER: ({center_x}, {center_y})")
+            logger.info(f"📦 BOUNDING BOX:")
+            logger.info(f"   Top-left: ({min_x}, {min_y})")
+            logger.info(f"   Bottom-right: ({max_x}, {max_y})")
+            logger.info(f"   Size: {max_x - min_x} x {max_y - min_y} pixels")
+            logger.info("=" * 40)
+
+        else:
+            key_points = {}
+            logger.info("⚠️  No annotation coordinates detected")
+
+        return web.json_response({
+            "status": "success",
+            "total_points": len(coordinates),
+            "key_points": key_points,
+            "message": f"Processed annotation with {len(coordinates)} points",
+            "saved_as": filename
+        })
+
+    except Exception as e:
+        logger.error("❌ Error processing annotation: %s", e)
+        return web.Response(status=500, text=f"Failed to process annotation: {e}")
+
 def run_server(args):
     # SSL Setup
-    ssl_context = None
-    if not args.no_ssl:
-        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(args.pem)
+    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_context.load_cert_chain(args.pem)
 
     app = web.Application(middlewares=[cors_middleware], client_max_size=10*1024**2)
 
@@ -565,18 +577,17 @@ def run_server(args):
     app.router.add_post(r"/post_ice/{id:\d+}", post_ice)
     app.router.add_post(r"/post_image/{id:\d+}", post_image)
     app.router.add_post(r"/consume_ices/{id:\d+}", consume_ices)
+    app.router.add_post("/submit-annotation", submit_annotation)
     app.router.add_get("/offers", get_offers)
     app.router.add_get("/answers", get_answers)
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
     app.router.add_get("/latest-frame", get_latest_frame)
-    app.router.add_post("/submit-annotation", submit_annotation)
-
     # app.router.add_get("/llm-response", get_llm_response)
     # app.router.add_get("/llm-images", get_llm_images)
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
 
-    web.run_app(app, host=args.ip, port=args.port, access_log=None, ssl_context=ssl_context)
+    web.run_app(app, host=args.ip, port=args.port, access_log=None, ssl_context=ssl_context if not args.no_ssl else None)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="XaiR Server.")
