@@ -1,3 +1,4 @@
+from io import BytesIO
 import requests
 import numpy as np
 import cv2
@@ -82,7 +83,7 @@ def live_stream():
          #text = fetch_latest_text()
          #user_image, yolo_image, sample_image = fetch_llm_images()
          yield frame
-         # time.sleep(0.05)  # Poll every 100ms
+         time.sleep(0.05)  # Poll every 100ms
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="XaiR Preview Window.")
@@ -96,8 +97,44 @@ if __name__ == "__main__":
         # add text title
         gr.Markdown("<h1 style='text-align: center;'>XaiR Preview Window</h1>")
 
-        gr.Markdown("<h2 style='text-align: left;'>Live Stream w/ Obj Detection:</h2>")
-        image_display = gr.Image(type="pil", show_label=False)
+        #gr.Markdown("<h2 style='text-align: left;'>Live Stream w/ Obj Detection:</h2>")
+        #image_display = gr.Image(type="pil", show_label=False)
+        with gr.Row():
+            # Left: live stream
+            with gr.Column():
+                gr.Markdown("### Live Stream Feed")
+                live_display = gr.Image(type="pil", interactive=False, show_label=False)
+
+            # Right: annotator
+            with gr.Column():
+                gr.Markdown("### Draw / Click to Annotate")
+                annotator = gr.ImageEditor(
+                    type="pil",
+                    brush=gr.Brush(),       # enables freehand + point
+                    interactive=True,
+                    show_label=False
+                )
+        demo.load(live_stream, [], outputs=[live_display, annotator])
+
+        # optional: a button to send the annotation back to your server
+        def send_annotation(annotated_img):
+            # e.g. convert to base64 and POST to your endpoint
+            buffered = BytesIO()
+            annotated_img.save(buffered, format="PNG")
+            b64 = base64.b64encode(buffered.getvalue()).decode()
+            requests.post(f"{SERVER_URL}/submit-annotation",
+                          json={"image": b64},
+                          verify=VERIFY_SSL)
+            return "Sent!"
+
+        send_btn = gr.Button("Save & Send Annotation")
+        result_txt = gr.Textbox(interactive=False)
+        send_btn.click(
+            fn=send_annotation,
+            inputs=[annotator],
+            outputs=[result_txt]
+        )
+
 
         # with gr.Row():
         #     with gr.Column(scale = 1):
@@ -121,4 +158,4 @@ if __name__ == "__main__":
 
         demo.load(live_stream, [], [image_display])
     demo.queue()
-    demo.launch(server_name="127.0.0.1", server_port=7861, share=False)
+    demo.launch(server_name="127.0.0.1", server_port=8000, share=False)

@@ -1,3 +1,5 @@
+# Modified XaiR Server with Annotation Support
+
 import os
 import ssl
 import time
@@ -23,11 +25,7 @@ from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 
 from logger import logger
 from constants import *
-# from chatgpt_helper import ChatGPTHelper
-# from whisper_helper import RemoteAudioToWhisper
-# from yolo_helper import YoloHelper
 from frame import Frame
-# from tutorial_follower import TutorialFollower
 from board_tracker import BoardTracker
 from debugger import Debugger
 
@@ -42,14 +40,9 @@ ices = defaultdict(list)
 
 msg_queue = Queue()
 image_bgr = deque()
+latest_frame_data = None  # Store complete frame data including matrices
 
-# chatgpt = ChatGPTHelper()
 board_tracker = BoardTracker()
-
-# yolo = None
-#tutorial_follower = None
-# llm_reply = None
-# llm_images = []
 debugger = None
 
 @web.middleware
@@ -62,57 +55,200 @@ async def cors_middleware(request, handler):
     response.headers["Access-Control-Allow-Headers"] = "*"
     return response
 
-# GET /latest-frame
-# GET /latest-frame
+# Frame data structure
+FrameData = namedtuple("FrameData", [
+    "client_id", "image", "camera_matrix", "projection_matrix", 
+    "distortion_matrix", "timestamp", "camera_to_world"
+])
+
+def detect_annotations_in_image(original_image, annotated_image):
+    """Detect annotation points by comparing original and annotated images"""
+    try:
+        if isinstance(original_image, Image.Image):
+            orig_array = np.array(original_image)
+        else:
+            orig_array = original_image
+            
+        if isinstance(annotated_image, Image.Image):
+            annot_array = np.array(annotated_image)
+        else:
+            annot_array = annotated_image
+        
+        # Ensure same shape
+        if orig_array.shape != annot_array.shape:
+            logger.warning("Image shape mismatch")
+            return []
+        
+        # Find differences
+        diff = np.abs(orig_array.astype(np.float32) - annot_array.astype(np.float32))
+        diff_gray = np.mean(diff, axis=2) if len(diff.shape) == 3 else diff
+        
+        # Threshold for significant changes
+        threshold = 30
+        mask = diff_gray > threshold
+        
+        # Find contours
+        mask_uint8 = (mask * 255).astype(np.uint8)
+        contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        annotation_points = []
+        for contour in contours:
+            M = cv2.moments(contour)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+                area = cv2.contourArea(contour)
+                
+                if area > 50:  # Minimum area threshold
+                    annotation_points.append({
+                        'x': cx,
+                        'y': cy,
+                        'area': area
+                    })
+        
+        return annotation_points
+        
+    except Exception as e:
+        logger.error(f"Error detecting annotations: {e}")
+        return []
+
+# GET /latest-frame - FIXED VERSION
 async def get_latest_frame(request):
     global image_bgr
-    if image_bgr is None or isinstance(image_bgr, deque) and len(image_bgr) == 0:
+    if len(image_bgr) == 0:
         return web.json_response({"image": None})
 
-    # Extract latest frame
-    if isinstance(image_bgr, deque):
-        frame_img = image_bgr[-1]
-    else:
-        frame_img = image_bgr
-
-    _, buffer = cv2.imencode('.jpg', frame_img)
+    frame = image_bgr[-1]
+    # logger.debug("Sending latest frame to client")
+    _, buffer = cv2.imencode('.jpg', frame)  # FIXED: use frame directly, not image_bgr
     frame_base64 = base64.b64encode(buffer).decode('utf-8')
     return web.json_response({"image": frame_base64})
 
-
-# GET /llm-response
-# async def get_llm_response(request):
-#     global llm_reply
-#     return web.json_response({"llm_response": llm_reply})
-
-# GET /llm-images
-# async def get_llm_images(request):
-#     llm_images = tutorial_follower.get_images()
-#     if len(llm_images) == 0:
-#         return web.json_response({"user_image": None, "sample_image": None})
-
-#     elif len(llm_images) == 1:
-#         logger.debug("Only 1 llm_images, something is wrong!")
-#         return web.json_response({"user_image": None, "sample_image": None})
-
-    # assert len(llm_images) == 2, "llm_images should be of length 2" # TODO: remove later
-    # logger.debug(f"Sending {len(llm_images)}llm_images to client")\
-
-    # response_data = {}
-    # _, buffer1 = cv2.imencode('.jpg', llm_images[0])
-    # response_data["user_image"] = base64.b64encode(buffer1).decode('utf-8')
-    # _, buffer2 = cv2.imencode('.jpg', llm_images[1])
-    # response_data["yolo_image"] = base64.b64encode(buffer2).decode('utf-8')
-    # _, buffer3 = cv2.imencode('.jpg', llm_images[2])
-    # response_data["sample_image"] = base64.b64encode(buffer3).decode('utf-8')
-
-    # return web.json_response(response_data)
+# NEW: POST /submit-annotation - Handle annotations from Gradio
+async def submit_annotation(request):
+    global latest_frame_data, image_bgr, msg_queue
+    
+    try:
+        data = await request.json()
+        base64_image = data.get("image")
+        client_id = data.get("client_id", "gradio")
+        
+        if not base64_image:
+            return web.json_response({"error": "No image data"}, status=400)
+        
+        # Decode annotated image
+        image_bytes = base64.b64decode(base64_image)
+        annotated_image = Image.open(BytesIO(image_bytes))
+        
+        # Save annotation
+        timestamp = int(time.time())
+        annotation_filename = f"annotation_{timestamp}.png"
+        annotated_image.save(annotation_filename)
+        
+        print("\n" + "="*60)
+        print("🎯 ANNOTATION RECEIVED FROM GRADIO")
+        print("="*60)
+        print(f"📅 Timestamp: {timestamp}")
+        print(f"💾 Saved as: {annotation_filename}")
+        print(f"📐 Image Size: {annotated_image.size}")
+        
+        # Detect annotation points
+        annotation_points = []
+        if len(image_bgr) > 0:
+            original_image = image_bgr[-1]
+            original_pil = Image.fromarray(cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB))
+            
+            detected_points = detect_annotations_in_image(original_pil, annotated_image)
+            
+            print(f"🔍 Detected {len(detected_points)} annotation points:")
+            print("-" * 40)
+            
+            for i, point in enumerate(detected_points):
+                pixel_x = point['x']
+                pixel_y = point['y']
+                area = point['area']
+                
+                annotation_points.append({
+                    'pixel_x': pixel_x,
+                    'pixel_y': pixel_y,
+                    'area': area
+                })
+                
+                print(f"📍 Point {i+1}:")
+                print(f"   └── Coordinates: ({pixel_x}, {pixel_y})")
+                print(f"   └── Area: {area} pixels")
+                print()
+        
+        # Print camera data if available
+        if latest_frame_data:
+            print("📷 CAMERA DATA:")
+            print("-" * 40)
+            print(f"🔗 Client ID: {latest_frame_data.client_id}")
+            print(f"⏰ Frame Timestamp: {latest_frame_data.timestamp}")
+            
+            if latest_frame_data.camera_to_world is not None:
+                print("🌍 Camera-to-World Matrix:")
+                print(latest_frame_data.camera_to_world)
+                print()
+            
+            if latest_frame_data.camera_matrix is not None:
+                print("📐 Camera Matrix (Intrinsics):")
+                print(latest_frame_data.camera_matrix)
+                print()
+            
+            if latest_frame_data.projection_matrix is not None:
+                print("🎯 Projection Matrix:")
+                print(latest_frame_data.projection_matrix)
+                print()
+            
+            # Send annotation data to Unity for hit testing and 3D placement
+            if annotation_points:
+                unity_message = {
+                    "clientID": latest_frame_data.client_id,
+                    "type": "annotation_hittest",
+                    "content": {
+                        "annotation_points": annotation_points,
+                        "timestamp": timestamp,
+                        "camera_to_world": latest_frame_data.camera_to_world.tolist() if latest_frame_data.camera_to_world is not None else None,
+                        "camera_matrix": latest_frame_data.camera_matrix.tolist() if latest_frame_data.camera_matrix is not None else None,
+                        "projection_matrix": latest_frame_data.projection_matrix.tolist() if latest_frame_data.projection_matrix is not None else None
+                    }
+                }
+                
+                # Queue message to be sent to Unity via WebRTC
+                msg_queue.put(unity_message)
+                print("📤 Sent annotation data to Unity client for 3D placement")
+        else:
+            print("⚠️  No camera data available - annotations saved but cannot send to Unity")
+        
+        print("="*60)
+        print()
+        
+        return web.json_response({
+            "status": "success",
+            "message": f"Annotation processed successfully",
+            "points_count": len(annotation_points),
+            "filename": annotation_filename
+        })
+        
+    except Exception as e:
+        logger.error(f"Error processing annotation: {e}")
+        return web.json_response({"error": str(e)}, status=500)
 
 # POST /login
 async def login(request):
     global next_client_id
     client_id = next_client_id
     next_client_id += 1
+    
+    # Enhanced logging
+    print(f"\n🔥 LOGIN ATTEMPT DETECTED!")
+    print(f"📱 Client IP: {request.remote}")
+    print(f"🆔 Assigned Client ID: {client_id}")
+    print(f"📊 Headers: {dict(request.headers)}")
+    print(f"🌐 Method: {request.method}")
+    print("-" * 50)
+    
     logger.info("User %s logged in from %s", client_id, request.remote)
     return web.Response(text=str(client_id))
 
@@ -142,7 +278,6 @@ async def logout(request):
         del recorders[client_id]
 
     ices.pop(client_id, None)
-
     return web.Response(status=200)
 
 async def dummy_consume(track):
@@ -175,9 +310,6 @@ async def post_offer(request):
             logger.info("Receiving video from client (we dont send video so we should never get here...)")
         elif track.kind == "audio":
             logger.info("Receiving audio from client!")
-            # audio_reader = RemoteAudioToWhisper(track)
-            # consume_task = asyncio.create_task(dummy_consume(audio_reader))
-            # consume_tasks[client_id] = consume_task
 
     @pc.on("datachannel")
     def on_datachannel(channel):
@@ -302,9 +434,9 @@ async def get_answers(request):
 Frame = namedtuple("Frame", ["client_id","image","cam","proj","dist","ts"])
 frame_buffers = defaultdict(list)
 
-# POST /post_image/{id}
+# POST /post_image/{id} - ENHANCED VERSION
 async def post_image(request):
-    global image_bgr
+    global image_bgr, latest_frame_data
 
     client_id = request.match_info["id"]
     try:
@@ -318,13 +450,27 @@ async def post_image(request):
         instrinsics = data.get("instrinsics", [])
         distortion = data.get("distortion", [])
 
+        # Process camera matrices
+        cam_mat = None
+        proj_mat = None
+        dist_mat = None
+        camera_to_world_mat = None
+
         if len(camera_to_world) == 16:
             values = list(map(float, camera_to_world))
-            cam_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+            camera_to_world_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
 
         if len(instrinsics) == 16:
             values = list(map(float, instrinsics))
             proj_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+            
+            # Extract camera matrix from projection matrix
+            cam_mat = np.array([
+                [proj_mat[0][0], 0, proj_mat[0][2]],
+                [0, proj_mat[1][1], proj_mat[1][2]],
+                [0, 0, 1]
+            ])
+            
             if not board_tracker.params_initialized:
                 board_tracker.assign_camera_params(proj_mat[0][0], proj_mat[1][1], proj_mat[0][2], proj_mat[1][2])
 
@@ -338,13 +484,32 @@ async def post_image(request):
         image = ImageEnhance.Brightness(image).enhance(0.9) # decrease brightness
         image = ImageEnhance.Contrast(image).enhance(1.5) # increase contrast
         image_rgb = np.array(image)
-        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-        cv2.imwrite("text.png", image_bgr)
+        image_bgr_current = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+        cv2.imwrite("text.png", image_bgr_current)
 
+        # Store in frame buffers
         frame_buffers[client_id].append(
-            Frame(client_id, image_bgr, cam_mat, proj_mat, dist_mat, timestamp)
+            Frame(client_id, image_bgr_current, cam_mat, proj_mat, dist_mat, timestamp)
         )
-        # image_bgr.append(Frame(client_id, image_bgr, cam_mat, proj_mat, dist_mat, timestamp))
+        
+        # Store for Gradio (FIXED: append the image, not overwrite)
+        image_bgr.append(image_bgr_current)
+        
+        # Store complete frame data for annotation processing
+        latest_frame_data = FrameData(
+            client_id=client_id,
+            image=image_bgr_current,
+            camera_matrix=cam_mat,
+            projection_matrix=proj_mat,
+            distortion_matrix=dist_mat,
+            timestamp=timestamp,
+            camera_to_world=camera_to_world_mat
+        )
+        
+        # Keep only recent frames
+        if len(image_bgr) > 10:
+            image_bgr.popleft()
+        
         logger.debug("Received image from client %s", client_id)
         return web.Response(status=200, text="Image received successfully")
 
@@ -387,176 +552,30 @@ async def on_shutdown(app):
 
 def handle_images():
     global image_bgr, msg_queue
-    # Start the tutorial follower thread
-    # if args.instruct:
-        # tutorial_thread = Thread(target=tutorial_follower.start, daemon=True)
-        # tutorial_thread.start()
-        # debug_thread = Thread(target=debugger.start, daemon=True)
-        # debug_thread.start()
     while True:
         try:
-            if args.instruct:
-                if len(image_bgr) == 0:
-                    time.sleep(0.1)
-                    continue
+            if len(image_bgr) == 0:
+                time.sleep(0.1)
+                continue
 
-                frame = image_bgr[-1]
-                # run_object_detection(frame)
-                # ask_tutorial(frame)
-            else:
-                if len(image_bgr) == 0:
-                    time.sleep(0.1)
-                    continue
-
-                frame = image_bgr[-1]
-                # image_bgr.clear()
-                if image_bgr is None:
-                    break
-                # run_object_detection(frame) # run YOLO
-                # run_ask_chatgpt("What am I looking at?", frame) # ask ChatGPT
+            frame = image_bgr[-1]
+            if frame is None:
+                break
+            # Add any image processing logic here
+            
         except Exception as e:
             logger.error(f"handle_images encountered an error: {e}", exc_info=True)
             continue
-
-# POST /submit-annotation
-async def submit_annotation(request):
-    try:
-        data = await request.json()
-        coordinates = data.get("coordinates", [])
-
-        if not coordinates:
-            return web.Response(status=400, text="No coordinates received")
-
-        print(f"[✔] Received annotation coordinates ({len(coordinates)} strokes):")
-        for i, stroke in enumerate(coordinates):
-            print(f"  Stroke {i+1}: {stroke}")
-
-        # Optionally store to a file for later processing
-        with open("annotation_coords.json", "w") as f:
-            json.dump(coordinates, f)
-
-        return web.Response(status=200, text="Coordinates received")
-    except Exception as e:
-        print("[❌] Failed to receive annotation coordinates:", e)
-        return web.Response(status=500, text="Server error")
-
-
-# def run_ask_chatgpt(query, frame):
-#     global llm_reply
-#     # ask ChatGPT
-#     llm_reply = chatgpt.ask(query, image=frame.img)
-#     msg = {
-#         "clientID": frame.client_id,
-#         "type": "LLMReply",
-#         "content": {
-#             "reply": llm_reply,
-#             "stepCompleted": False, #not relevant
-#         },
-#         "timestamp": frame.timestamp
-#     }
-#     logger.info(llm_reply)
-#     msg_queue.put(msg)
-
-# def ask_tutorial(frame):
-#     global llm_reply
-#     tutorial_answer = tutorial_follower.get_answer()
-#     if tutorial_answer is None:
-#         return
-
-#     llm_reply = tutorial_answer
-#     tutorial_follower.clear_answer()
-#     msg = {
-#         "clientID": frame.client_id,
-#         "type": "LLMReply",
-#         "content": {
-#             "reply": llm_reply,
-#             "stepCompleted": "step completed" in llm_reply.lower(),
-#         },
-#         "timestamp": frame.timestamp,
-#     }
-#     msg_queue.put(msg)
-
-#  def draw_yolo_response(frame):
-#     object_labels = []
-#     object_centers = []
-#     object_confidences = []
-#     yolo_results = yolo.predict(frame.img)
-#     for result in yolo_results:
-#         if args.instruct and result["class_name"] not in tutorial_follower.get_current_objects():
-#             continue
-#         object_labels.append(result["class_name"])
-#         bbox = result["bbox"]
-#         x1, y1, x2, y2 = bbox
-#         center_x = (x1 + x2) / 2
-#         center_y = (y1 + y2) / 2
-#         object_centers.append((center_x, frame.img.shape[0] - center_y))
-#         object_confidences.append(result["confidence"])
-
-#     frame_img = frame.img.copy()
-#     for result in yolo_results:
-#         bbox = result["bbox"]
-#         x1, y1, x2, y2 = bbox
-#         cv2.rectangle(frame_img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-#         cv2.putText(frame_img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-#     return frame_img
-
-# def run_object_detection(frame):
-#     object_labels = []
-#     object_centers = []
-#     object_confidences = []
-#     yolo_results = yolo.predict(frame.img)
-#     for result in yolo_results:
-#         if args.instruct and (result["class_name"] not in tutorial_follower.get_current_objects()):
-#             continue
-#         object_labels.append(display_labels[result["class_name"]])
-#         bbox = result["bbox"]
-#         x1, y1, x2, y2 = bbox
-#         center_x = (x1 + x2) / 2
-#         center_y = (y1 + y2) / 2
-#         object_centers.append((center_x, frame.img.shape[0] - center_y + 71)) # added the +71 bc hit testing results seemed to be off a little
-#         object_confidences.append(result["confidence"])
-
-#     # # save image to disk (to debug)
-#     # os.makedirs("images", exist_ok=True)
-#     # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
-#     # # draw bounding boxes
-#     # for result in yolo_results:
-#     #     bbox = result["bbox"]
-#     #     x1, y1, x2, y2 = bbox
-#     #     cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-#     #     cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-#     # # save the image
-#     # logger.warning("Saving image to %s", img_path)
-#     # cv2.imwrite(img_path, frame.img)
-
-#     # if len(object_labels) == 0:
-#     #     return
-
-#     msg = {
-#         "clientID": frame.client_id,
-#         "type": "objectDetections",
-#         "content": {
-#             "labels": object_labels,
-#             "centers": object_centers,
-#             "confidences": object_confidences,
-#         },
-#         "imageWidth": frame.img.shape[1],
-#         "imageHeight": frame.img.shape[0],
-#         "timestamp": frame.timestamp,
-#         "extrinsics": frame.cam_mat.flatten().tolist(),
-#         "instrinsics": frame.proj_mat.flatten().tolist(),
-#         "distortion": frame.dist_mat.flatten().tolist()
-#     }
-#     msg_queue.put(msg)
 
 def run_server(args):
     # SSL Setup
     ssl_context = None
     if not args.no_ssl:
-        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(args.pem)
+        try:
+            ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            ssl_context.load_cert_chain(args.pem)
+        except FileNotFoundError:
+            logger.warning("SSL certificate not found, running without SSL")
 
     app = web.Application(middlewares=[cors_middleware], client_max_size=10*1024**2)
 
@@ -572,13 +591,13 @@ def run_server(args):
     app.router.add_get("/answers", get_answers)
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
     app.router.add_get("/latest-frame", get_latest_frame)
-    app.router.add_post("/submit-annotation", submit_annotation)
-
-    # app.router.add_get("/llm-response", get_llm_response)
-    # app.router.add_get("/llm-images", get_llm_images)
+    app.router.add_post("/submit-annotation", submit_annotation)  # NEW ANNOTATION ROUTE
+    app.router.add_get("/test", lambda request: web.Response(text="🟢 Server is working! Time: " + str(time.time())))  # TEST ENDPOINT
+    app.router.add_get("/debug", lambda request: web.Response(text=f"Server running on {args.ip}:{args.port}\nConnected clients: {len(pcs)}\nActive frames: {len(image_bgr)}"))
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
 
+    logger.info(f"Starting XaiR Server on {args.ip}:{args.port}")
     web.run_app(app, host=args.ip, port=args.port, access_log=None, ssl_context=ssl_context)
 
 if __name__ == "__main__":
@@ -590,7 +609,6 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbosity', type=int, default=2,
                         help='Set log level (0: ERROR, 1: WARNING, 2: INFO, 3: DEBUG)')
     parser.add_argument('--instruct', action='store_true', help='Enable instruction following')
-    # parser.add_argument('--yolo-model', default='runs/detect/train_latest/best.pt', help='Path to YOLO model')
     args = parser.parse_args()
 
     verbosity_map = {
@@ -601,11 +619,6 @@ if __name__ == "__main__":
     }
     log_level = verbosity_map.get(args.verbosity, logging.DEBUG)
     logger.setLevel(log_level)
-
-    #yolo = YoloHelper(args.yolo_model)
-    # if args.instruct:
-    #     tutorial_follower = TutorialFollower(image_bgr, board_tracker=board_tracker)
-    #     debugger = Debugger(tutorial_follower)
 
     # Start the thread
     display_thread = Thread(target=handle_images, daemon=True)
