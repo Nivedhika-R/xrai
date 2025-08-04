@@ -13,7 +13,7 @@ import json
 parser = argparse.ArgumentParser(description="XaiR Live Preview & Annotate")
 parser.add_argument('--ip',      default='0.0.0.0', help='Host for Gradio server')
 parser.add_argument('--port',   type=int, default=7860,   help='Port for Gradio server')
-parser.add_argument('--backend', default='127.0.0.1',     help='Host/IP of your frame server')
+parser.add_argument('--backend', default='192.168.4.140',     help='Host/IP of your frame server')
 parser.add_argument('--bport',  type=int, default=8000,   help='Port of your frame server')
 parser.add_argument('--https', action='store_true',       help='Use HTTPS for backend')
 args = parser.parse_args()
@@ -32,12 +32,12 @@ def fetch_latest_frame():
                                 verify=VERIFY_SSL)
             resp.raise_for_status()
             data = resp.json()
-            b64 = data.get("image", "")
-            if not b64:
+            frame_base64 = data.get("image", "")
+            if not frame_base64:
                 yield None
                 continue
 
-            raw = base64.b64decode(b64)
+            raw = base64.b64decode(frame_base64)
             arr = np.frombuffer(raw, np.uint8)
             cv_img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
             rgb = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)

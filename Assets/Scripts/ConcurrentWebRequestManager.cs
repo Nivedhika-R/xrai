@@ -15,73 +15,70 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace MagicLeap
+/// <summary>
+/// For servers that can only handle concurrent requests, this class maintains a queue to send only 1 request at a time.
+/// Call UpdateWebRequests() every frame to check the status of ongoing requests and submit a new one from the pending queue.
+/// </summary>
+public class ConcurrentWebRequestManager
 {
-    /// <summary>
-    /// For servers that can only handle concurrent requests, this class maintains a queue to send only 1 request at a time.
-    /// Call UpdateWebRequests() every frame to check the status of ongoing requests and submit a new one from the pending queue.
-    /// </summary>
-    public class ConcurrentWebRequestManager
+    private Queue<UnityWebRequest> pendingWebRequests = new Queue<UnityWebRequest>();
+    private Dictionary<UnityWebRequest, Action<AsyncOperation>> webRequestsToOnCompletedEvent = new Dictionary<UnityWebRequest, Action<AsyncOperation>>();
+    private UnityWebRequest lastWebRequest = null;
+    private UnityWebRequestAsyncOperation lastWebRequestAsyncOp = null;
+    private bool lastWebRequestCompleted = true;
+
+    public void HttpPost(string url, string data, Action<AsyncOperation> onCompleted = null)
     {
-        private Queue<UnityWebRequest> pendingWebRequests = new Queue<UnityWebRequest>();
-        private Dictionary<UnityWebRequest, Action<AsyncOperation>> webRequestsToOnCompletedEvent = new Dictionary<UnityWebRequest, Action<AsyncOperation>>();
-        private UnityWebRequest lastWebRequest = null;
-        private UnityWebRequestAsyncOperation lastWebRequestAsyncOp = null;
-        private bool lastWebRequestCompleted = true;
-
-        public void HttpPost(string url, string data, Action<AsyncOperation> onCompleted = null)
+        UnityWebRequest request;
+        if (data != string.Empty)
         {
-            UnityWebRequest request;
-            if (data != string.Empty)
-            {
-                request = new UnityWebRequest(url);
-                request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(data));
-                request.downloadHandler = new DownloadHandlerBuffer();
-                request.method = UnityWebRequest.kHttpVerbPOST;
+            request = new UnityWebRequest(url);
+            request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(data));
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.method = UnityWebRequest.kHttpVerbPOST;
 
-            }
-            else
-            {
-                request = UnityWebRequest.PostWwwForm(url, data);
-            }
-
-            pendingWebRequests.Enqueue(request);
-            webRequestsToOnCompletedEvent.Add(request, onCompleted);
+        }
+        else
+        {
+            request = UnityWebRequest.PostWwwForm(url, data);
         }
 
-        public void HttpGet(string url, Action<AsyncOperation> onCompleted = null)
-        {
-            UnityWebRequest request = UnityWebRequest.Get(url);
-            pendingWebRequests.Enqueue(request);
-            webRequestsToOnCompletedEvent.Add(request, onCompleted);
-        }
+        pendingWebRequests.Enqueue(request);
+        webRequestsToOnCompletedEvent.Add(request, onCompleted);
+    }
 
-        public void UpdateWebRequests()
+    public void HttpGet(string url, Action<AsyncOperation> onCompleted = null)
+    {
+        UnityWebRequest request = UnityWebRequest.Get(url);
+        pendingWebRequests.Enqueue(request);
+        webRequestsToOnCompletedEvent.Add(request, onCompleted);
+    }
+
+    public void UpdateWebRequests()
+    {
+        if (pendingWebRequests.Count > 0 && lastWebRequestCompleted)
         {
-            if (pendingWebRequests.Count > 0 && lastWebRequestCompleted)
+            lastWebRequestCompleted = false;
+            lastWebRequest = pendingWebRequests.Dequeue();
+            lastWebRequest.certificateHandler = new AcceptAnyCertificate();
+            lastWebRequestAsyncOp = lastWebRequest.SendWebRequest();
+            lastWebRequestAsyncOp.completed += (AsyncOperation asyncOp) =>
             {
-                lastWebRequestCompleted = false;
-                lastWebRequest = pendingWebRequests.Dequeue();
-                lastWebRequest.certificateHandler = new AcceptAnyCertificate();
-                lastWebRequestAsyncOp = lastWebRequest.SendWebRequest();
-                lastWebRequestAsyncOp.completed += (AsyncOperation asyncOp) =>
+                UnityWebRequestAsyncOperation webRequestAsyncOp = asyncOp as UnityWebRequestAsyncOperation;
+
+                if (webRequestAsyncOp.webRequest.result != UnityWebRequest.Result.Success)
                 {
-                    UnityWebRequestAsyncOperation webRequestAsyncOp = asyncOp as UnityWebRequestAsyncOperation;
+                    Debug.LogError($"MLWebRTCExample.Http{webRequestAsyncOp.webRequest.method}({webRequestAsyncOp.webRequest.url}) failed, Reason : {webRequestAsyncOp.webRequest.error}");
+                }
 
-                    if (webRequestAsyncOp.webRequest.result != UnityWebRequest.Result.Success)
-                    {
-                        Debug.LogError($"MLWebRTCExample.Http{webRequestAsyncOp.webRequest.method}({webRequestAsyncOp.webRequest.url}) failed, Reason : {webRequestAsyncOp.webRequest.error}");
-                    }
+                if (webRequestsToOnCompletedEvent.TryGetValue(lastWebRequest, out var callback))
+                {
+                    callback?.Invoke(asyncOp);
+                    webRequestsToOnCompletedEvent.Remove(lastWebRequest);
+                }
 
-                    if (webRequestsToOnCompletedEvent.TryGetValue(lastWebRequest, out var callback))
-                    {
-                        callback?.Invoke(asyncOp);
-                        webRequestsToOnCompletedEvent.Remove(lastWebRequest);
-                    }
-
-                    lastWebRequestCompleted = true;
-                };
-            }
+                lastWebRequestCompleted = true;
+            };
         }
     }
 }

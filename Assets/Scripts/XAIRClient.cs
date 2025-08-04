@@ -1,4 +1,3 @@
-using MagicLeap;
 using SimpleJson;
 using System;
 using System.Collections;
@@ -22,8 +21,8 @@ public class XAIRClient : Singleton<XAIRClient>
     private ServerCommunication _serverCommunication;
     [SerializeField]
     private MediaManager _mediaManager;
-    [SerializeField]
-    private TriangleMeshing _meshManager;
+    // [SerializeField]
+    // private TriangleMeshing _meshManager;
 
     [SerializeField]
     private AudioSource dingSource;
@@ -44,7 +43,7 @@ public class XAIRClient : Singleton<XAIRClient>
 
     private readonly List<GameObject> activeObjects = new();
 
-    private Material transparentMat;
+    // private Material transparentMat;
 
     public static Matrix4x4 StringToMatrix(string matrixStr)
     {
@@ -83,12 +82,12 @@ public class XAIRClient : Singleton<XAIRClient>
             marker.transform.localScale = new Vector3(0.02f, 0.02f, 0.02f);
         }
 
-        transparentMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        transparentMat.SetFloat("_Surface", 1); // 1 = Transparent, 0 = Opaque
-        transparentMat.SetFloat("_ZWrite", 0);  // Disable ZWrite for transparency
-        transparentMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        transparentMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
-        transparentMat.color = new Color(1f, 0f, 0f, 0.9f); // semi-transparent
+        // transparentMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        // transparentMat.SetFloat("_Surface", 1); // 1 = Transparent, 0 = Opaque
+        // transparentMat.SetFloat("_ZWrite", 0);  // Disable ZWrite for transparency
+        // transparentMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        // transparentMat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        // transparentMat.color = new Color(1f, 0f, 0f, 0.9f); // semi-transparent
 
         WebRTCController.Instance.OnWebRTCConnectionStateChange += OnWebRTCConnectionStateChanged;
         WebRTCController.Instance.OnDataChannelMessageReceived += OnDataChannelMessageReceived;
@@ -259,7 +258,7 @@ public class XAIRClient : Singleton<XAIRClient>
                         marker.name = objectLabel;
                         marker.transform.localPosition = hitPoint;
                         marker.transform.localScale = new Vector3(0.0075f, 0.0075f, 0.0075f);
-                        marker.GetComponent<Renderer>().material = transparentMat;
+                        // marker.GetComponent<Renderer>().material = transparentMat;
                         activeObjects.Add(marker);
 
                         if (enableDebug)
@@ -307,7 +306,8 @@ public class XAIRClient : Singleton<XAIRClient>
         Vector3 cameraPositionWorld = cameraToWorldMatrix.GetPosition();
 
         Ray ray = new(cameraPositionWorld, rayDirWorld);
-        return _meshManager.RayCastToMesh(ray, out hitPoint);
+        hitPoint = Vector3.zero;
+        return false;
     }
 
     private void UpdateLLMResponseText(string text)

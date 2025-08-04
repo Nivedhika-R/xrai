@@ -91,7 +91,7 @@ if __name__ == "__main__":
     parser.add_argument('--ip', default='127.0.0.1', help='IP address to bind to')
     args = parser.parse_args()
 
-    SERVER_URL = f"https://{args.ip}:7860"  # Or http://localhost:8000 if no SSL
+    SERVER_URL = f"https://{args.ip}:8000c"  # Or http://localhost:8000 if no SSL
     VERIFY_SSL = False  # Set to False if using self-signed certs
 
     with gr.Blocks(css=".big-textbox textarea {font-size: 18px !important;}") as demo:
@@ -165,4 +165,4 @@ if __name__ == "__main__":
 
         #demo.load(fn=live_stream, inputs=None, outputs=[live_display])
     demo.queue()
-    demo.launch(server_name="127.0.0.1", server_port=8000, share=False)
+    demo.launch(server_name="127.0.0.1", server_port=8001, share=False)

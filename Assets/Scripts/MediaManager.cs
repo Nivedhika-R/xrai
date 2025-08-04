@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using UnityEngine;
-using MagicLeap;
 using UnityEngine.UI;
 
 /// <summary>
@@ -16,22 +15,11 @@ public class MediaManager : Singleton<MediaManager>
     [Header("Local Media")]
 
     [SerializeReference]
-    private MagicLeapCameraManager _magicLeapCameraDeviceManager;
+    private AndroidCameraManager _androidCameraDeviceManager;
     [SerializeReference]
     private WebCamManager _webCamDeviceManager;
     [SerializeField]
     private MicrophoneManager _microphoneManager;
-
-    [Header("Permissions")]
-
-    [SerializeField]
-    private PermissionsManager _permissionsManager;
-
-    [Header("Magic Leap Settings")]
-
-    [SerializeField]
-    [Tooltip("Will use the MLCamera APIs instead of the WebCamera Texture component.")]
-    private bool _useMLCamera = true;
 
     private ICameraDeviceManager _targetCameraDeviceManager;
 
@@ -43,27 +31,24 @@ public class MediaManager : Singleton<MediaManager>
 
     public AudioSource ReceiveAudio => _receiveAudio;
 
-    private IEnumerator Start()
+    private void Start()
     {
 
-        if (_useMLCamera && Application.platform == RuntimePlatform.Android
-            && SystemInfo.deviceModel == "Magic Leap Magic Leap 2")
+        if (Application.platform == RuntimePlatform.Android)
         {
-            _targetCameraDeviceManager = _magicLeapCameraDeviceManager;
+            _targetCameraDeviceManager = _androidCameraDeviceManager;
         }
         else
         {
             _targetCameraDeviceManager = _webCamDeviceManager;
         }
 
-        _permissionsManager.RequestPermission();
-        yield return new WaitUntil(() => _permissionsManager.PermissionsGranted);
-
         StartMedia();
     }
 
     private void StartMedia()
     {
+        Debug.Log("Starting media components...");
         _targetCameraDeviceManager.StartMedia();
         _microphoneManager.SetupAudio();
     }
@@ -92,7 +77,18 @@ public class MediaManager : Singleton<MediaManager>
         bool res = _targetCameraDeviceManager != null
                 && _targetCameraDeviceManager.IsConfiguredAndReady
                 && _microphoneManager.IsConfiguredAndReady;
-        if (res) {
+        Debug.Log($"HELLO {_targetCameraDeviceManager} {_microphoneManager}");
+        if (_targetCameraDeviceManager != null)
+        {
+            Debug.Log($"Camera Device Ready = {_targetCameraDeviceManager.IsConfiguredAndReady}");
+        }
+        if (_microphoneManager != null)
+        {
+            Debug.Log($"Microphone Ready = {_microphoneManager.IsConfiguredAndReady}");
+        }
+
+        if (res)
+        {
             Debug.Log($"Camera Device Ready = {_targetCameraDeviceManager.IsConfiguredAndReady} && Microphone Ready = {_microphoneManager.IsConfiguredAndReady} ");
         }
 
@@ -120,7 +116,7 @@ public class MediaManager : Singleton<MediaManager>
         if (png)
             imageBytes = tex.EncodeToPNG();
         else
-            imageBytes = tex.EncodeToJPG(85);
+            imageBytes = tex.EncodeToJPG(70);
 
         // Restore the previous RenderTexture
         RenderTexture.active = currentRT;

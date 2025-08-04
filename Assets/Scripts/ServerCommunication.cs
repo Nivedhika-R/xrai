@@ -2,7 +2,6 @@
 /// ServerCommunication manages the communication with the signaling server for WebRTC connections.
 /// It handles login, sending and receiving SDP offers and answers, and managing ICE candidates.
 /// </summary>
-using MagicLeap;
 using SimpleJson;
 using System;
 using System.Text;
