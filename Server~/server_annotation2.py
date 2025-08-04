@@ -42,7 +42,9 @@ recorders = {}  # client_id: MediaRecorder
 ices = defaultdict(list)
 
 msg_queue = Queue()
-image_bgr = deque()
+# 🔧 FIX: Keep this as a deque, don't let it get overwritten
+image_frames_deque = deque(maxlen=20)  # Renamed to avoid confusion
+frame_counter = 0  # Add counter for debugging
 
 # chatgpt = ChatGPTHelper()
 board_tracker = BoardTracker()
@@ -52,16 +54,6 @@ board_tracker = BoardTracker()
 # llm_reply = None
 # llm_images = []
 debugger = None
-
-# @web.middleware
-# async def cors_middleware(request, handler):
-#     if request.method == "OPTIONS":
-#         return web.Response(status=200)
-#     response = await handler(request)
-#     response.headers["Access-Control-Allow-Origin"] = "*"
-#     response.headers["Access-Control-Allow-Methods"] = "*"
-#     response.headers["Access-Control-Allow-Headers"] = "*"
-#     return response
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -73,7 +65,7 @@ async def cors_middleware(request, handler):
         except Exception as e:
             logger.error(f"Handler error: {e}")
             response = web.json_response({"error": "Internal server error"}, status=500)
-    
+
     # Enhanced CORS headers
     response.headers.update({
         "Access-Control-Allow-Origin": "*",
@@ -84,64 +76,58 @@ async def cors_middleware(request, handler):
     })
     return response
 
-# async def get_latest_frame(request):
-#     global image_bgr
-    
-#     if len(image_bgr) == 0:
-#         return web.Response(text='{"image": null}', content_type='application/json')
-
-#     try:
-#         latest_frame = image_bgr[-1]
-#         _, buffer = cv2.imencode('.jpg', latest_frame)
-#         frame_base64 = base64.b64encode(buffer).decode('utf-8')
-        
-#         response_text = f'{{"image": "{frame_base64}"}}'
-#         return web.Response(text=response_text, content_type='application/json')
-        
-#     except Exception as e:
-#         logger.error(f"Error: {e}")
-#         return web.Response(text='{"error": "server error"}', content_type='application/json')
-
 async def get_latest_frame(request):
-    global image_bgr
-    
+    global image_frames_deque, frame_counter
+
     try:
-        if len(image_bgr) == 0:
-            # Return empty response instead of None
+        if len(image_frames_deque) == 0:
+            logger.warning("⚠️  No frames available in deque")
             return web.json_response({
                 "image": "",
                 "status": "no_frames",
-                "message": "No frames available yet"
+                "message": "No frames available yet",
+                "frame_count": frame_counter,
+                "deque_size": 0
             })
 
-        latest_frame = image_bgr[-1]
-        
+        latest_frame = image_frames_deque[-1]
+
         # Add validation
         if latest_frame is None or latest_frame.size == 0:
+            logger.error("❌ Invalid frame data in deque")
             return web.json_response({
                 "image": "",
-                "status": "invalid_frame", 
-                "message": "Invalid frame data"
+                "status": "invalid_frame",
+                "message": "Invalid frame data",
+                "frame_count": frame_counter,
+                "deque_size": len(image_frames_deque)
             })
-            
+
         # Encode with error handling - reduce quality for faster transmission
         success, buffer = cv2.imencode('.jpg', latest_frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
         if not success:
+            logger.error("❌ Failed to encode frame to JPEG")
             return web.json_response({
                 "image": "",
                 "status": "encode_error",
-                "message": "Failed to encode frame"
+                "message": "Failed to encode frame",
+                "frame_count": frame_counter,
+                "deque_size": len(image_frames_deque)
             })
-            
+
         frame_base64 = base64.b64encode(buffer).decode('utf-8')
-        
+
+        logger.info(f"📤 Sending frame to Gradio - Frame #{frame_counter}, Deque size: {len(image_frames_deque)}, Base64 size: {len(frame_base64)}")
+
         response = web.json_response({
             "image": frame_base64,
             "status": "success",
             "timestamp": time.time(),
-            "frame_size": len(frame_base64)
+            "frame_size": len(frame_base64),
+            "frame_count": frame_counter,
+            "deque_size": len(image_frames_deque)
         })
-        
+
         # Enhanced headers to prevent connection issues
         response.headers.update({
             'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
@@ -151,58 +137,33 @@ async def get_latest_frame(request):
             'Keep-Alive': 'timeout=5, max=1000',
             'X-Accel-Buffering': 'no'  # Disable nginx buffering if behind nginx
         })
-        
+
         return response
 
     except Exception as e:
-        logger.error(f"Error in get_latest_frame: {e}")
+        logger.error(f"❌ Error in get_latest_frame: {e}")
         import traceback
         traceback.print_exc()
         return web.json_response({
             "image": "",
             "status": "server_error",
-            "message": f"Server error: {str(e)}"
+            "message": f"Server error: {str(e)}",
+            "frame_count": frame_counter,
+            "deque_size": len(image_frames_deque) if 'image_frames_deque' in globals() else 0
         }, status=500)
-
-# Also update the run_server function to add keep-alive settings:
-def run_server(args):
-    ssl_context = None
-    if not args.no_ssl:
-        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(args.pem)
-
-    # Enhanced app configuration with connection settings
-    app = web.Application(
-        middlewares=[cors_middleware], 
-        client_max_size=10*1024**2
-    )
-    
-    # Add all your routes here...
-    
-    # Run with keep-alive settings
-    web.run_app(
-        app, 
-        host=args.ip, 
-        port=args.port, 
-        access_log=None, 
-        ssl_context=ssl_context,
-        keepalive_timeout=75,  # Keep connections alive longer
-        shutdown_timeout=10,   # Graceful shutdown
-    )
-
 
 # POST /login
 async def login(request):
     global next_client_id
     client_id = next_client_id
     next_client_id += 1
-    logger.info("User %s logged in from %s", client_id, request.remote)
+    logger.info("🔐 User %s logged in from %s", client_id, request.remote)
     return web.Response(text=str(client_id))
 
 # POST /logout/{id}
 async def logout(request):
     client_id = int(request.match_info["id"])
-    logger.info("User %s logged out", client_id)
+    logger.info("👋 User %s logged out", client_id)
 
     if client_id in consume_tasks:
         consume_tasks[client_id].cancel()
@@ -258,9 +219,6 @@ async def post_offer(request):
             logger.info("Receiving video from client (we dont send video so we should never get here...)")
         elif track.kind == "audio":
             logger.info("Receiving audio from client!")
-            # audio_reader = RemoteAudioToWhisper(track)
-            # consume_task = asyncio.create_task(dummy_consume(audio_reader))
-            # consume_tasks[client_id] = consume_task
 
     @pc.on("datachannel")
     def on_datachannel(channel):
@@ -382,62 +340,16 @@ async def get_offers(request):
 async def get_answers(request):
     return web.json_response(created_answers)
 
-# POST /post_image/{id}
-# async def post_image(request):
-#     global image_bgr
-
-#     client_id = request.match_info["id"]
-#     try:
-#         data = await request.json()
-#         base64_str = data.get("image")
-#         if not base64_str:
-#             return web.Response(status=400, text="Missing image data")
-
-#         timestamp = data.get("timestamp", -1)
-#         camera_to_world = data.get("cameraToWorldMatrix", [])
-#         instrinsics = data.get("instrinsics", [])
-#         distortion = data.get("distortion", [])
-
-#         if len(camera_to_world) == 16:
-#             values = list(map(float, camera_to_world))
-#             cam_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
-
-#         if len(instrinsics) == 16:
-#             values = list(map(float, instrinsics))
-#             proj_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
-#             if not board_tracker.params_initialized:
-#                 board_tracker.assign_camera_params(proj_mat[0][0], proj_mat[1][1], proj_mat[0][2], proj_mat[1][2])
-
-#         if len(distortion) == 16:
-#             values = list(map(float, distortion))
-#             dist_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
-
-#         # Decode base64 string
-#         image_bytes = base64.b64decode(base64_str)
-#         image = Image.open(BytesIO(image_bytes))
-#         image = ImageEnhance.Brightness(image).enhance(0.9) # decrease brightness
-#         image = ImageEnhance.Contrast(image).enhance(1.5) # increase contrast
-#         image_rgb = np.array(image)
-#         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-#         cv2.imwrite("text.png", image_bgr)
-
-#         logger.debug("Received image from client %s", client_id)
-#         return web.Response(status=200, text="Image received successfully")
-
-#     except Exception as e:
-#         logger.error("Error receiving image from client %s: %s", client_id, e)
-#         return web.Response(status=500, text="Failed to receive image")
-
-# POST /post_image/{id}
-
+# 🔧 FIXED: POST /post_image/{id}
 async def post_image(request):
-    global image_bgr
+    global image_frames_deque, frame_counter
 
     client_id = request.match_info["id"]
     try:
         data = await request.json()
         base64_str = data.get("image")
         if not base64_str:
+            logger.error(f"❌ No image data received from client {client_id}")
             return web.Response(status=400, text="Missing image data")
 
         timestamp = data.get("timestamp", -1)
@@ -445,6 +357,7 @@ async def post_image(request):
         instrinsics = data.get("instrinsics", [])
         distortion = data.get("distortion", [])
 
+        # Process camera matrices
         if len(camera_to_world) == 16:
             values = list(map(float, camera_to_world))
             cam_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
@@ -459,38 +372,45 @@ async def post_image(request):
             values = list(map(float, distortion))
             dist_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
 
-        # Decode base64 string
-        image_bytes = base64.b64decode(base64_str)
-        image = Image.open(BytesIO(image_bytes))
-        image = ImageEnhance.Brightness(image).enhance(0.9)
-        image = ImageEnhance.Contrast(image).enhance(1.5)
-        image_rgb = np.array(image)
-        frame_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-        
-        # 🔧 FIX: Add frame to deque properly (don't overwrite the variable!)
-        image_bgr.append(frame_bgr)
-        if len(image_bgr) > 10:
-            image_bgr.popleft()
-        
-        # 🔧 SIMPLE FILE SAVE (no deletion, just overwrite)
+        # 🔧 FIXED: Decode and process image properly
+        try:
+            image_bytes = base64.b64decode(base64_str)
+            image = Image.open(BytesIO(image_bytes))
+            image = ImageEnhance.Brightness(image).enhance(0.9)
+            image = ImageEnhance.Contrast(image).enhance(1.5)
+            image_rgb = np.array(image)
+            frame_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+
+            # 🔧 CRITICAL FIX: Don't overwrite the global deque!
+            image_frames_deque.append(frame_bgr)
+            frame_counter += 1
+
+            logger.info(f"✅ Frame #{frame_counter} received from client {client_id} - Deque size: {len(image_frames_deque)}")
+
+        except Exception as decode_error:
+            logger.error(f"❌ Failed to decode/process image from client {client_id}: {decode_error}")
+            return web.Response(status=500, text=f"Failed to process image: {decode_error}")
+
+        # 🔧 OPTIONAL: Save to file for debugging
         try:
             file_path = "latest_frame.jpg"
             success = cv2.imwrite(file_path, frame_bgr)
             if success:
-                logger.info(f"💾 Successfully saved frame to {file_path}")
+                logger.debug(f"💾 Frame saved to {file_path}")
             else:
-                logger.error(f"❌ Failed to save frame to {file_path}")
-        except Exception as e:
-            logger.error(f"❌ Exception saving file: {e}")
+                logger.warning(f"⚠️  Failed to save frame to {file_path}")
+        except Exception as save_error:
+            logger.warning(f"⚠️  Exception saving file: {save_error}")
 
-        logger.info(f"✅ Received and processed image from client {client_id} - Queue size: {len(image_bgr)}")
         return web.Response(status=200, text="Image received successfully")
 
     except Exception as e:
-        logger.error("Error receiving image from client %s: %s", client_id, e)
+        logger.error(f"❌ Error receiving image from client {client_id}: {e}")
+        import traceback
+        traceback.print_exc()
         return web.Response(status=500, text=f"Failed to receive image: {e}")
-        
-    # GET /answer/{id}
+
+# GET /answer/{id}
 async def get_answers_for_id(request):
     client_id = int(request.match_info["id"])
     answer = created_answers.get(client_id, {})
@@ -538,11 +458,6 @@ async def submit_annotation(request):
         image = Image.open(BytesIO(image_bytes))
         image_rgb = np.array(image)
 
-        # 🚫 REMOVED: Don't save annotated images
-        # timestamp = int(time.time())
-        # filename = f"annotated_image_{timestamp}.png"
-        # cv2.imwrite(filename, cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR))
-
         # Process coordinates (keep this part)
         if coordinates:
             x_coords = [c[0] for c in coordinates]
@@ -586,32 +501,48 @@ async def submit_annotation(request):
             "total_points": len(coordinates),
             "key_points": key_points,
             "message": f"Processed annotation with {len(coordinates)} points"
-            # 🚫 REMOVED: "saved_as": filename
         })
 
     except Exception as e:
         logger.error("❌ Error processing annotation: %s", e)
         return web.Response(status=500, text=f"Failed to process annotation: {e}")
 
-# 4. Alternative: Add a simple health check endpoint:
-
 async def health_check(request):
-    """Simple health check endpoint"""
-    global image_bgr
+    """Enhanced health check endpoint with frame info"""
+    global image_frames_deque, frame_counter
     return web.json_response({
         "status": "healthy",
         "timestamp": time.time(),
-        "frames_available": len(image_bgr),
-        "server_running": True
+        "frames_available": len(image_frames_deque),
+        "total_frames_received": frame_counter,
+        "server_running": True,
+        "active_connections": len(pcs),
+        "deque_maxlen": image_frames_deque.maxlen
     })
 
+# 🔧 NEW: Debug endpoint to check frame flow
+async def debug_frames(request):
+    """Debug endpoint to check frame status"""
+    global image_frames_deque, frame_counter
+
+    frame_info = []
+    for i, frame in enumerate(image_frames_deque):
+        if frame is not None:
+            frame_info.append({
+                "index": i,
+                "shape": frame.shape if hasattr(frame, 'shape') else "unknown",
+                "dtype": str(frame.dtype) if hasattr(frame, 'dtype') else "unknown"
+            })
+
+    return web.json_response({
+        "total_frames_received": frame_counter,
+        "current_deque_size": len(image_frames_deque),
+        "deque_max_size": image_frames_deque.maxlen,
+        "frame_details": frame_info,
+        "latest_frame_available": len(image_frames_deque) > 0
+    })
 
 def run_server(args):
-    # SSL Setup
-    # ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    # ssl_context.load_cert_chain(args.pem)
-
-    # app = web.Application(middlewares=[cors_middleware], client_max_size=10*1024**2)
     ssl_context = None
     if not args.no_ssl:
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
@@ -619,7 +550,7 @@ def run_server(args):
 
     # Basic app configuration (compatible with older aiohttp)
     app = web.Application(
-        middlewares=[cors_middleware], 
+        middlewares=[cors_middleware],
         client_max_size=10*1024**2
     )
 
@@ -637,18 +568,17 @@ def run_server(args):
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
     app.router.add_get("/latest-frame", get_latest_frame)
     app.router.add_get("/health", health_check)
-    # app.router.add_get("/llm-response", get_llm_response)
-    # app.router.add_get("/llm-images", get_llm_images)
+    app.router.add_get("/debug-frames", debug_frames)  # 🔧 NEW DEBUG ENDPOINT
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
 
-    # web.run_app(app, host=args.ip, port=args.port, access_log=None, ssl_context=ssl_context if not args.no_ssl else None)
+    logger.info(f"🚀 Starting server on {args.ip}:{args.port} (SSL: {not args.no_ssl})")
 
     web.run_app(
-        app, 
-        host=args.ip, 
-        port=args.port, 
-        access_log=None, 
+        app,
+        host=args.ip,
+        port=args.port,
+        access_log=None,
         ssl_context=ssl_context
     )
 
@@ -661,7 +591,6 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbosity', type=int, default=2,
                         help='Set log level (0: ERROR, 1: WARNING, 2: INFO, 3: DEBUG)')
     parser.add_argument('--instruct', action='store_true', help='Enable instruction following')
-    # parser.add_argument('--yolo-model', default='runs/detect/train_latest/best.pt', help='Path to YOLO model')
     args = parser.parse_args()
 
     verbosity_map = {
@@ -672,10 +601,5 @@ if __name__ == "__main__":
     }
     log_level = verbosity_map.get(args.verbosity, logging.DEBUG)
     logger.setLevel(log_level)
-
-    #yolo = YoloHelper(args.yolo_model)
-    # if args.instruct:
-    #     tutorial_follower = TutorialFollower(image_bgr, board_tracker=board_tracker)
-    #     debugger = Debugger(tutorial_follower)
 
     run_server(args)

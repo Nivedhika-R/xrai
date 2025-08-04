@@ -379,7 +379,6 @@ async def on_shutdown(app):
     recorders.clear()
     consume_tasks.clear()
 
-<<<<<<< HEAD
 def handle_images():
     global image_bgr, msg_queue
     # Start the tutorial follower thread
@@ -436,8 +435,6 @@ async def submit_annotation(request):
         return web.Response(status=500, text="Server error")
 
 
-=======
->>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 # def run_ask_chatgpt(query, frame):
 #     global llm_reply
 #     # ask ChatGPT

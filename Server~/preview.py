@@ -83,13 +83,8 @@ def live_stream():
          frame = fetch_latest_frame()
          #text = fetch_latest_text()
          #user_image, yolo_image, sample_image = fetch_llm_images()
-<<<<<<< HEAD
          yield frame
          time.sleep(0.05)  # Poll every 100ms
-=======
-         time.sleep(0.05)  # Poll every 100ms
-         yield frame,frame
->>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="XaiR Preview Window.")
@@ -109,22 +104,14 @@ if __name__ == "__main__":
         # add text title
         gr.Markdown("<h1 style='text-align: center;'>XaiR Preview Window</h1>")
 
-<<<<<<< HEAD
         #gr.Markdown("<h2 style='text-align: left;'>Live Stream w/ Obj Detection:</h2>")
         #image_display = gr.Image(type="pil", show_label=False)
         with gr.Row():
             # Left: live stream
-=======
-        #cOMMRNTED THE 2 LINES BELOW FOR ANNOTATION
-        #gr.Markdown("<h2 style='text-align: left;'>Live Stream w/ Obj Detection:</h2>")
-        # image_display = gr.Image(type="pil", show_label=False)
-        with gr.Row():
->>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
             with gr.Column():
                 gr.Markdown("### Live Stream Feed")
                 live_display = gr.Image(type="pil", interactive=False, show_label=False)
 
-<<<<<<< HEAD
             # Right: annotator
             with gr.Column():
                 gr.Markdown("### Draw / Click to Annotate")
@@ -155,36 +142,6 @@ if __name__ == "__main__":
             outputs=[result_txt]
         )
 
-=======
-                capture_btn = gr.Button("Capture Frame")
-
-            with gr.Column():
-                gr.Markdown("### Draw/Click to Annotate")
-                annotator = gr.ImageEditor(
-                    type = "pil",
-                    brush=gr.Brush(),
-                    show_label = False,
-                    interactive = True,
-                )
-
-            #continuosly update the live_display with the latest frame
-            demo.load(fn=live_stream, inputs=None, outputs=[live_display])  # Update every 50ms
-
-            #when the aid clicks on the live_display, push that single frame into annotator
-            capture_btn.click(fn=lambda img: img, inputs=live_display, outputs=annotator)
-
-            def send_annotation(annotated_img):
-                buffered = BytesIO()
-                annotated_img.save(buffered, format="PNG")
-                b64 = base64.b64encode(buffered.getvalue()).decode()
-                requests.post(f"{SERVER_URL}/submit_annotation", json={"image": b64}, verify=VERIFY_SSL)
-                return "Annotation sent!"
-
-            send_btn = gr.Button("Save & Send Annotation")
-            result_txt = gr.Textbox(interactive=False)
-            send_btn.click(fn=send_annotation, inputs=[annotator], outputs=[result_txt])
-        #gr.Markdown("<h2 style='text-align: left;'>Annotated Image w/ Obj Detection [Sent to LLM]:</h2>"
->>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
 
         # with gr.Row():
         #     with gr.Column(scale = 1):
@@ -208,8 +165,4 @@ if __name__ == "__main__":
 
         #demo.load(fn=live_stream, inputs=None, outputs=[live_display])
     demo.queue()
-<<<<<<< HEAD
     demo.launch(server_name="127.0.0.1", server_port=8000, share=False)
-=======
-    demo.launch(server_name="127.0.0.1", server_port=7860, share=False)
->>>>>>> d2b7fe9febc15c6eb900f232aa75779667e41bd8
