@@ -53,56 +53,143 @@ board_tracker = BoardTracker()
 # llm_images = []
 debugger = None
 
+# @web.middleware
+# async def cors_middleware(request, handler):
+#     if request.method == "OPTIONS":
+#         return web.Response(status=200)
+#     response = await handler(request)
+#     response.headers["Access-Control-Allow-Origin"] = "*"
+#     response.headers["Access-Control-Allow-Methods"] = "*"
+#     response.headers["Access-Control-Allow-Headers"] = "*"
+#     return response
+
 @web.middleware
 async def cors_middleware(request, handler):
     if request.method == "OPTIONS":
-        return web.Response(status=200)
-    response = await handler(request)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
+        response = web.Response(status=200)
+    else:
+        try:
+            response = await handler(request)
+        except Exception as e:
+            logger.error(f"Handler error: {e}")
+            response = web.json_response({"error": "Internal server error"}, status=500)
+    
+    # Enhanced CORS headers
+    response.headers.update({
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+        "Access-Control-Max-Age": "86400",  # 24 hours
+        "Access-Control-Allow-Credentials": "false"
+    })
     return response
 
-# GET /latest-frame
+# async def get_latest_frame(request):
+#     global image_bgr
+    
+#     if len(image_bgr) == 0:
+#         return web.Response(text='{"image": null}', content_type='application/json')
+
+#     try:
+#         latest_frame = image_bgr[-1]
+#         _, buffer = cv2.imencode('.jpg', latest_frame)
+#         frame_base64 = base64.b64encode(buffer).decode('utf-8')
+        
+#         response_text = f'{{"image": "{frame_base64}"}}'
+#         return web.Response(text=response_text, content_type='application/json')
+        
+#     except Exception as e:
+#         logger.error(f"Error: {e}")
+#         return web.Response(text='{"error": "server error"}', content_type='application/json')
+
 async def get_latest_frame(request):
     global image_bgr
-    if len(image_bgr) == 0:
-        return web.json_response({"image": None})
+    
+    try:
+        if len(image_bgr) == 0:
+            # Return empty response instead of None
+            return web.json_response({
+                "image": "",
+                "status": "no_frames",
+                "message": "No frames available yet"
+            })
 
-    frame = image_bgr[-1]
-    # logger.debug("Sending latest frame to client %s", frame.client_id)
-    # image_with_bboxes = draw_yolo_response(frame)
-    _, buffer = cv2.imencode('.jpg', image_bgr)
-    frame_base64 = base64.b64encode(buffer).decode('utf-8')
-    return web.json_response({"image": frame_base64})
+        latest_frame = image_bgr[-1]
+        
+        # Add validation
+        if latest_frame is None or latest_frame.size == 0:
+            return web.json_response({
+                "image": "",
+                "status": "invalid_frame", 
+                "message": "Invalid frame data"
+            })
+            
+        # Encode with error handling - reduce quality for faster transmission
+        success, buffer = cv2.imencode('.jpg', latest_frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        if not success:
+            return web.json_response({
+                "image": "",
+                "status": "encode_error",
+                "message": "Failed to encode frame"
+            })
+            
+        frame_base64 = base64.b64encode(buffer).decode('utf-8')
+        
+        response = web.json_response({
+            "image": frame_base64,
+            "status": "success",
+            "timestamp": time.time(),
+            "frame_size": len(frame_base64)
+        })
+        
+        # Enhanced headers to prevent connection issues
+        response.headers.update({
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'Connection': 'keep-alive',
+            'Keep-Alive': 'timeout=5, max=1000',
+            'X-Accel-Buffering': 'no'  # Disable nginx buffering if behind nginx
+        })
+        
+        return response
 
-# GET /llm-response
-# async def get_llm_response(request):
-#     global llm_reply
-#     return web.json_response({"llm_response": llm_reply})
+    except Exception as e:
+        logger.error(f"Error in get_latest_frame: {e}")
+        import traceback
+        traceback.print_exc()
+        return web.json_response({
+            "image": "",
+            "status": "server_error",
+            "message": f"Server error: {str(e)}"
+        }, status=500)
 
-# GET /llm-images
-# async def get_llm_images(request):
-#     llm_images = tutorial_follower.get_images()
-#     if len(llm_images) == 0:
-#         return web.json_response({"user_image": None, "sample_image": None})
+# Also update the run_server function to add keep-alive settings:
+def run_server(args):
+    ssl_context = None
+    if not args.no_ssl:
+        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_context.load_cert_chain(args.pem)
 
-#     elif len(llm_images) == 1:
-#         logger.debug("Only 1 llm_images, something is wrong!")
-#         return web.json_response({"user_image": None, "sample_image": None})
+    # Enhanced app configuration with connection settings
+    app = web.Application(
+        middlewares=[cors_middleware], 
+        client_max_size=10*1024**2
+    )
+    
+    # Add all your routes here...
+    
+    # Run with keep-alive settings
+    web.run_app(
+        app, 
+        host=args.ip, 
+        port=args.port, 
+        access_log=None, 
+        ssl_context=ssl_context,
+        keepalive_timeout=75,  # Keep connections alive longer
+        shutdown_timeout=10,   # Graceful shutdown
+    )
 
-    # assert len(llm_images) == 2, "llm_images should be of length 2" # TODO: remove later
-    # logger.debug(f"Sending {len(llm_images)}llm_images to client")\
-
-    # response_data = {}
-    # _, buffer1 = cv2.imencode('.jpg', llm_images[0])
-    # response_data["user_image"] = base64.b64encode(buffer1).decode('utf-8')
-    # _, buffer2 = cv2.imencode('.jpg', llm_images[1])
-    # response_data["yolo_image"] = base64.b64encode(buffer2).decode('utf-8')
-    # _, buffer3 = cv2.imencode('.jpg', llm_images[2])
-    # response_data["sample_image"] = base64.b64encode(buffer3).decode('utf-8')
-
-    # return web.json_response(response_data)
 
 # POST /login
 async def login(request):
@@ -296,6 +383,53 @@ async def get_answers(request):
     return web.json_response(created_answers)
 
 # POST /post_image/{id}
+# async def post_image(request):
+#     global image_bgr
+
+#     client_id = request.match_info["id"]
+#     try:
+#         data = await request.json()
+#         base64_str = data.get("image")
+#         if not base64_str:
+#             return web.Response(status=400, text="Missing image data")
+
+#         timestamp = data.get("timestamp", -1)
+#         camera_to_world = data.get("cameraToWorldMatrix", [])
+#         instrinsics = data.get("instrinsics", [])
+#         distortion = data.get("distortion", [])
+
+#         if len(camera_to_world) == 16:
+#             values = list(map(float, camera_to_world))
+#             cam_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+
+#         if len(instrinsics) == 16:
+#             values = list(map(float, instrinsics))
+#             proj_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+#             if not board_tracker.params_initialized:
+#                 board_tracker.assign_camera_params(proj_mat[0][0], proj_mat[1][1], proj_mat[0][2], proj_mat[1][2])
+
+#         if len(distortion) == 16:
+#             values = list(map(float, distortion))
+#             dist_mat = np.array([values[i:i+4] for i in range(0, 16, 4)])
+
+#         # Decode base64 string
+#         image_bytes = base64.b64decode(base64_str)
+#         image = Image.open(BytesIO(image_bytes))
+#         image = ImageEnhance.Brightness(image).enhance(0.9) # decrease brightness
+#         image = ImageEnhance.Contrast(image).enhance(1.5) # increase contrast
+#         image_rgb = np.array(image)
+#         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+#         cv2.imwrite("text.png", image_bgr)
+
+#         logger.debug("Received image from client %s", client_id)
+#         return web.Response(status=200, text="Image received successfully")
+
+#     except Exception as e:
+#         logger.error("Error receiving image from client %s: %s", client_id, e)
+#         return web.Response(status=500, text="Failed to receive image")
+
+# POST /post_image/{id}
+
 async def post_image(request):
     global image_bgr
 
@@ -328,20 +462,35 @@ async def post_image(request):
         # Decode base64 string
         image_bytes = base64.b64decode(base64_str)
         image = Image.open(BytesIO(image_bytes))
-        image = ImageEnhance.Brightness(image).enhance(0.9) # decrease brightness
-        image = ImageEnhance.Contrast(image).enhance(1.5) # increase contrast
+        image = ImageEnhance.Brightness(image).enhance(0.9)
+        image = ImageEnhance.Contrast(image).enhance(1.5)
         image_rgb = np.array(image)
-        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-        cv2.imwrite("text.png", image_bgr)
+        frame_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+        
+        # 🔧 FIX: Add frame to deque properly (don't overwrite the variable!)
+        image_bgr.append(frame_bgr)
+        if len(image_bgr) > 10:
+            image_bgr.popleft()
+        
+        # 🔧 SIMPLE FILE SAVE (no deletion, just overwrite)
+        try:
+            file_path = "latest_frame.jpg"
+            success = cv2.imwrite(file_path, frame_bgr)
+            if success:
+                logger.info(f"💾 Successfully saved frame to {file_path}")
+            else:
+                logger.error(f"❌ Failed to save frame to {file_path}")
+        except Exception as e:
+            logger.error(f"❌ Exception saving file: {e}")
 
-        logger.debug("Received image from client %s", client_id)
+        logger.info(f"✅ Received and processed image from client {client_id} - Queue size: {len(image_bgr)}")
         return web.Response(status=200, text="Image received successfully")
 
     except Exception as e:
         logger.error("Error receiving image from client %s: %s", client_id, e)
-        return web.Response(status=500, text="Failed to receive image")
-
-# GET /answer/{id}
+        return web.Response(status=500, text=f"Failed to receive image: {e}")
+        
+    # GET /answer/{id}
 async def get_answers_for_id(request):
     client_id = int(request.match_info["id"])
     answer = created_answers.get(client_id, {})
@@ -374,120 +523,6 @@ async def on_shutdown(app):
     recorders.clear()
     consume_tasks.clear()
 
-# def run_ask_chatgpt(query, frame):
-#     global llm_reply
-#     # ask ChatGPT
-#     llm_reply = chatgpt.ask(query, image=frame.img)
-#     msg = {
-#         "clientID": frame.client_id,
-#         "type": "LLMReply",
-#         "content": {
-#             "reply": llm_reply,
-#             "stepCompleted": False, #not relevant
-#         },
-#         "timestamp": frame.timestamp
-#     }
-#     logger.info(llm_reply)
-#     msg_queue.put(msg)
-
-# def ask_tutorial(frame):
-#     global llm_reply
-#     tutorial_answer = tutorial_follower.get_answer()
-#     if tutorial_answer is None:
-#         return
-
-#     llm_reply = tutorial_answer
-#     tutorial_follower.clear_answer()
-#     msg = {
-#         "clientID": frame.client_id,
-#         "type": "LLMReply",
-#         "content": {
-#             "reply": llm_reply,
-#             "stepCompleted": "step completed" in llm_reply.lower(),
-#         },
-#         "timestamp": frame.timestamp,
-#     }
-#     msg_queue.put(msg)
-
-#  def draw_yolo_response(frame):
-#     object_labels = []
-#     object_centers = []
-#     object_confidences = []
-#     yolo_results = yolo.predict(frame.img)
-#     for result in yolo_results:
-#         if args.instruct and result["class_name"] not in tutorial_follower.get_current_objects():
-#             continue
-#         object_labels.append(result["class_name"])
-#         bbox = result["bbox"]
-#         x1, y1, x2, y2 = bbox
-#         center_x = (x1 + x2) / 2
-#         center_y = (y1 + y2) / 2
-#         object_centers.append((center_x, frame.img.shape[0] - center_y))
-#         object_confidences.append(result["confidence"])
-
-#     frame_img = frame.img.copy()
-#     for result in yolo_results:
-#         bbox = result["bbox"]
-#         x1, y1, x2, y2 = bbox
-#         cv2.rectangle(frame_img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-#         cv2.putText(frame_img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-#     return frame_img
-
-# def run_object_detection(frame):
-#     object_labels = []
-#     object_centers = []
-#     object_confidences = []
-#     yolo_results = yolo.predict(frame.img)
-#     for result in yolo_results:
-#         if args.instruct and (result["class_name"] not in tutorial_follower.get_current_objects()):
-#             continue
-#         object_labels.append(display_labels[result["class_name"]])
-#         bbox = result["bbox"]
-#         x1, y1, x2, y2 = bbox
-#         center_x = (x1 + x2) / 2
-#         center_y = (y1 + y2) / 2
-#         object_centers.append((center_x, frame.img.shape[0] - center_y + 71)) # added the +71 bc hit testing results seemed to be off a little
-#         object_confidences.append(result["confidence"])
-
-#     # # save image to disk (to debug)
-#     # os.makedirs("images", exist_ok=True)
-#     # img_path = os.path.join("images", f"image_c{frame.client_id}_{frame.timestamp}.png")
-#     # # draw bounding boxes
-#     # for result in yolo_results:
-#     #     bbox = result["bbox"]
-#     #     x1, y1, x2, y2 = bbox
-#     #     cv2.rectangle(frame.img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-#     #     cv2.putText(frame.img, result["class_name"], (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-#     # # save the image
-#     # logger.warning("Saving image to %s", img_path)
-#     # cv2.imwrite(img_path, frame.img)
-
-#     # if len(object_labels) == 0:
-#     #     return
-
-#     msg = {
-#         "clientID": frame.client_id,
-#         "type": "objectDetections",
-#         "content": {
-#             "labels": object_labels,
-#             "centers": object_centers,
-#             "confidences": object_confidences,
-#         },
-#         "imageWidth": frame.img.shape[1],
-#         "imageHeight": frame.img.shape[0],
-#         "timestamp": frame.timestamp,
-#         "extrinsics": frame.cam_mat.flatten().tolist(),
-#         "instrinsics": frame.proj_mat.flatten().tolist(),
-#         "distortion": frame.dist_mat.flatten().tolist()
-#     }
-#     msg_queue.put(msg)
-
-
-# POST /submit-annotation
-# Replace your submit_annotation function with this simplified version
-
 # POST /submit-annotation
 async def submit_annotation(request):
     try:
@@ -498,23 +533,21 @@ async def submit_annotation(request):
         if not base64_str:
             return web.Response(status=400, text="Missing image data")
 
-        # Decode and save the annotated image for debugging
+        # Decode image for processing (but don't save)
         image_bytes = base64.b64decode(base64_str)
         image = Image.open(BytesIO(image_bytes))
         image_rgb = np.array(image)
 
-        # Save annotated image
-        timestamp = int(time.time())
-        filename = f"annotated_image_{timestamp}.png"
-        cv2.imwrite(filename, cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR))
+        # 🚫 REMOVED: Don't save annotated images
+        # timestamp = int(time.time())
+        # filename = f"annotated_image_{timestamp}.png"
+        # cv2.imwrite(filename, cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR))
 
-        # Simplify coordinates - get only key points
+        # Process coordinates (keep this part)
         if coordinates:
-            # Get key summary points instead of all points
             x_coords = [c[0] for c in coordinates]
             y_coords = [c[1] for c in coordinates]
 
-            # Key points: center, corners of bounding box, and a few sample points
             min_x, max_x = min(x_coords), max(x_coords)
             min_y, max_y = min(y_coords), max(y_coords)
             center_x = (min_x + max_x) // 2
@@ -533,11 +566,9 @@ async def submit_annotation(request):
                 }
             }
 
-            # Print only the essential coordinates
             logger.info("=" * 40)
             logger.info("📍 ANNOTATION SUMMARY")
             logger.info("=" * 40)
-            logger.info(f"📁 Saved: {filename}")
             logger.info(f"📊 Total points detected: {len(coordinates)}")
             logger.info(f"🎯 CENTER: ({center_x}, {center_y})")
             logger.info(f"📦 BOUNDING BOX:")
@@ -554,20 +585,43 @@ async def submit_annotation(request):
             "status": "success",
             "total_points": len(coordinates),
             "key_points": key_points,
-            "message": f"Processed annotation with {len(coordinates)} points",
-            "saved_as": filename
+            "message": f"Processed annotation with {len(coordinates)} points"
+            # 🚫 REMOVED: "saved_as": filename
         })
 
     except Exception as e:
         logger.error("❌ Error processing annotation: %s", e)
         return web.Response(status=500, text=f"Failed to process annotation: {e}")
 
+# 4. Alternative: Add a simple health check endpoint:
+
+async def health_check(request):
+    """Simple health check endpoint"""
+    global image_bgr
+    return web.json_response({
+        "status": "healthy",
+        "timestamp": time.time(),
+        "frames_available": len(image_bgr),
+        "server_running": True
+    })
+
+
 def run_server(args):
     # SSL Setup
-    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ssl_context.load_cert_chain(args.pem)
+    # ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    # ssl_context.load_cert_chain(args.pem)
 
-    app = web.Application(middlewares=[cors_middleware], client_max_size=10*1024**2)
+    # app = web.Application(middlewares=[cors_middleware], client_max_size=10*1024**2)
+    ssl_context = None
+    if not args.no_ssl:
+        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_context.load_cert_chain(args.pem)
+
+    # Basic app configuration (compatible with older aiohttp)
+    app = web.Application(
+        middlewares=[cors_middleware], 
+        client_max_size=10*1024**2
+    )
 
     # Routes
     app.router.add_post("/login", login)
@@ -582,12 +636,21 @@ def run_server(args):
     app.router.add_get("/answers", get_answers)
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
     app.router.add_get("/latest-frame", get_latest_frame)
+    app.router.add_get("/health", health_check)
     # app.router.add_get("/llm-response", get_llm_response)
     # app.router.add_get("/llm-images", get_llm_images)
     app.router.add_get("/", root_redirect)
     app.on_shutdown.append(on_shutdown)
 
-    web.run_app(app, host=args.ip, port=args.port, access_log=None, ssl_context=ssl_context if not args.no_ssl else None)
+    # web.run_app(app, host=args.ip, port=args.port, access_log=None, ssl_context=ssl_context if not args.no_ssl else None)
+
+    web.run_app(
+        app, 
+        host=args.ip, 
+        port=args.port, 
+        access_log=None, 
+        ssl_context=ssl_context
+    )
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="XaiR Server.")
