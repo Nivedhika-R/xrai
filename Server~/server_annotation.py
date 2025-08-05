@@ -1,3 +1,5 @@
+# Run: python server_annotation.py --ip <ip address> --port 8000 --pem server.pem
+
 import os
 import ssl
 import time
@@ -57,6 +59,8 @@ board_tracker = BoardTracker()
 
 debugger = None
 latest_pose_data = {}
+latest_annotations = []
+annotation_queue = []
 
 @web.middleware
 async def cors_middleware(request, handler):
@@ -67,20 +71,6 @@ async def cors_middleware(request, handler):
     response.headers["Access-Control-Allow-Methods"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
     return response
-
-# GET /latest-frame
-
-# async def get_latest_frame(request):
-#     global image_bgr
-#     if len(image_bgr) == 0:
-#         return web.json_response({"image": None})
-#     frame = image_bgr[-1]
-#     # logger.debug("Sending latest frame to client %s", frame.client_id)
-
-#     # image_with_bboxes = draw_yolo_response(frame)
-#     _, buffer = cv2.imencode('.jpg', image_bgr)
-#     frame_base64 = base64.b64encode(buffer).decode('utf-8')
-#     return web.json_response({"image": frame_base64})
 
 async def get_latest_frame(request):
     global image_bgr, latest_pose_data
@@ -372,6 +362,8 @@ async def post_image(request):
 # POST /submit-annotation
 
 async def submit_annotation(request):
+    global latest_annotations, annotation_queue, latest_pose_data
+
     try:
         data = await request.json()
         base64_str = data.get("image")
@@ -408,28 +400,59 @@ async def submit_annotation(request):
             center_x = (min_x + max_x) // 2
             center_y = (min_y + max_y) // 2
 
-            # Enhanced logging
-            logger.info("=" * 50)
-            logger.info("🎯 ANNOTATION RECEIVED")
-            logger.info("=" * 50)
-            logger.info(f"📁 Saved as: {filename}")
-            logger.info(f"📊 Total annotation points: {len(coordinates)}")
-            logger.info(f"🎯 CENTER: ({center_x}, {center_y})")
-            logger.info(f"📦 BOUNDING BOX:")
-            logger.info(f"   Top-left: ({min_x}, {min_y})")
-            logger.info(f"   Bottom-right: ({max_x}, {max_y})")
-            logger.info(f"   Size: {max_x - min_x} x {max_y - min_y} pixels")
+            # 🎯 STORE ANNOTATION DATA FOR UNITY
+            annotation_data = {
+                "id": timestamp,
+                "coordinates": coordinates,
+                "center": [center_x, center_y],
+                "bounding_box": {
+                    "min": [min_x, min_y],
+                    "max": [max_x, max_y],
+                    "width": max_x - min_x,
+                    "height": max_y - min_y
+                },
+                "pose_matrix": pose_matrix,
+                "timestamp": timestamp,
+                "processed": False
+            }
 
-            if pose_matrix:
-                logger.info(f"📐 POSE MATRIX: Included ({len(pose_matrix)} elements)")
-                # You can process the pose matrix here for your specific needs
-            else:
-                logger.info("📐 POSE MATRIX: Not available")
+            # Store as latest annotation
+            latest_annotations = [annotation_data]
 
-            logger.info("=" * 50)
+            # Add to queue for Unity to consume
+            annotation_queue.append(annotation_data)
 
-            # Here you can add your specific processing logic
-            # For example, convert image coordinates to world coordinates using pose matrix
+            # Keep only last 10 annotations in queue
+            if len(annotation_queue) > 10:
+                annotation_queue.pop(0)
+
+            logger.info("🎯 ANNOTATION STORED FOR UNITY")
+            logger.info(f"📊 Center: ({center_x}, {center_y})")
+            logger.info(f"📐 Pose matrix: {'Available' if pose_matrix else 'Not available'}")
+            logger.info(f"📤 Queued for Unity: {len(annotation_queue)} annotations pending")
+
+            # # Enhanced logging
+            # logger.info("=" * 50)
+            # logger.info("🎯 ANNOTATION RECEIVED")
+            # logger.info("=" * 50)
+            # logger.info(f"📁 Saved as: {filename}")
+            # logger.info(f"📊 Total annotation points: {len(coordinates)}")
+            # logger.info(f"🎯 CENTER: ({center_x}, {center_y})")
+            # logger.info(f"📦 BOUNDING BOX:")
+            # logger.info(f"   Top-left: ({min_x}, {min_y})")
+            # logger.info(f"   Bottom-right: ({max_x}, {max_y})")
+            # logger.info(f"   Size: {max_x - min_x} x {max_y - min_y} pixels")
+
+            # if pose_matrix:
+            #     logger.info(f"📐 POSE MATRIX: Included ({len(pose_matrix)} elements)")
+            #     # You can process the pose matrix here for your specific needs
+            # else:
+            #     logger.info("📐 POSE MATRIX: Not available")
+
+            # logger.info("=" * 50)
+
+            # # Here you can add your specific processing logic
+            # # For example, convert image coordinates to world coordinates using pose matrix
 
         return web.json_response({
             "status": "success",
@@ -437,7 +460,8 @@ async def submit_annotation(request):
             "center": [center_x, center_y] if coordinates else None,
             "pose_matrix_received": pose_matrix is not None,
             "message": f"Successfully processed annotation with {len(coordinates)} points",
-            "saved_as": filename
+            "saved_as": filename,
+            "annotation_id": timestamp
         })
 
     except Exception as e:
@@ -445,6 +469,64 @@ async def submit_annotation(request):
         import traceback
         traceback.print_exc()
         return web.Response(status=500, text=f"Failed to process annotation: {e}")
+
+async def get_latest_annotation(request):
+    """Get only the most recent annotation"""
+    global latest_annotations
+
+    try:
+        if not latest_annotations:
+            return web.json_response({
+                "status": "no_annotations",
+                "annotation": None
+            })
+
+        latest = latest_annotations[-1]
+
+        if latest.get("processed", False):
+            return web.json_response({
+                "status": "already_processed",
+                "annotation": None
+            })
+
+        logger.info(f"📤 Sending latest annotation (ID: {latest['id']}) to Unity")
+
+        return web.json_response({
+            "status": "success",
+            "annotation": latest
+        })
+
+    except Exception as e:
+        logger.error("❌ Error getting latest annotation: %s", e)
+        return web.Response(status=500, text=f"Failed to get latest annotation: {e}")
+
+async def mark_annotations_processed(request):
+    """Mark annotations as processed by Unity"""
+    global annotation_queue, latest_annotations
+
+    try:
+        data = await request.json()
+        processed_ids = data.get("processed_ids", [])
+
+        # Mark annotations as processed in both queues
+        for annotation in annotation_queue:
+            if annotation["id"] in processed_ids:
+                annotation["processed"] = True
+
+        for annotation in latest_annotations:
+            if annotation["id"] in processed_ids:
+                annotation["processed"] = True
+
+        logger.info(f"✅ Marked {len(processed_ids)} annotations as processed by Unity")
+
+        return web.json_response({
+            "status": "success",
+            "processed_count": len(processed_ids)
+        })
+
+    except Exception as e:
+        logger.error("❌ Error marking annotations as processed: %s", e)
+        return web.Response(status=500, text=f"Failed to mark annotations as processed: {e}")
 
 # GET /answer/{id}
 
@@ -498,6 +580,8 @@ def run_server(args):
     app.router.add_get(r"/answer/{id:\d+}", get_answers_for_id)
     app.router.add_get("/latest-frame", get_latest_frame)
     app.router.add_post("/submit-annotation", submit_annotation)
+    app.router.add_get("/get-latest-annotation", get_latest_annotation)
+    app.router.add_post("/mark-annotations-processed", mark_annotations_processed)
     # app.router.add_get("/llm-response", get_llm_response)
     # app.router.add_get("/llm-images", get_llm_images)
     app.router.add_get("/", root_redirect)

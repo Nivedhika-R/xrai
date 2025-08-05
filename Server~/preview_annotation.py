@@ -379,6 +379,8 @@
 
 # preview_annotation.py - WORKING VERSION with correct Gradio ImageEditor handling
 
+# Run: python preview_annotation.py --backend <ip address> --bport 8000 --https
+
 import argparse
 from io import BytesIO
 import base64
