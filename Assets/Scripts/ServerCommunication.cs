@@ -14,6 +14,39 @@ using System.Linq;
 public class ServerCommunication : MonoBehaviour
 {
     [System.Serializable]
+    public class AnnotationData
+    {
+        public int id;
+        public int[][] coordinates;  // Array of [x,y] coordinates
+        public int[] center;         // [x, y] center point
+        public BoundingBox bounding_box;
+        public float[] pose_matrix;  // The original camera pose matrix
+        public long timestamp;
+        public bool processed;
+    }
+    [System.Serializable]
+    public class BoundingBox
+    {
+        public int[] min;  // [x, y]
+        public int[] max;  // [x, y]
+        public int width;
+        public int height;
+    }
+
+    [System.Serializable]
+    public class AnnotationResponse
+    {
+        public string status;
+        public AnnotationData annotation;  // Single annotation
+        public AnnotationData[] annotations; // Multiple annotations
+        public int count;
+    }
+    [System.Serializable]
+    public class ProcessedAnnotations
+    {
+        public int[] processed_ids;
+    }
+    [System.Serializable]
     private class ImageData
     {
         public long timestamp;
@@ -39,6 +72,12 @@ public class ServerCommunication : MonoBehaviour
     // Action to handle new remote ICE candidates
     public Action<string, string, int> OnNewRemoteICECandidate;
 
+    // Action to notify when new annotation is received
+    public Action<AnnotationData> OnNewAnnotationReceived;
+
+    // Action to notify when annotation polling fails
+    public Action<string> OnAnnotationError;
+
     // Manages concurrent web requests
     private ConcurrentWebRequestManager _webRequestManager = new ConcurrentWebRequestManager();
 
@@ -47,6 +86,10 @@ public class ServerCommunication : MonoBehaviour
     private string _serverUri = "";
     private string _localId = ""; // Local ID given by the server
     private string _remoteId = ""; // Remote participant ID
+
+    private bool _isPollingAnnotations = false;
+    private float _annotationPollInterval = 1.0f; // Poll every 1 second
+    private Coroutine _annotationPollingCoroutine;
 
     private float[] MatrixToFloatArray(Matrix4x4 matrix)
     {
@@ -345,10 +388,165 @@ public class ServerCommunication : MonoBehaviour
     }
 
     /// <summary>
+    /// Start polling the server for new annotations
+    /// </summary>
+    /// <param name="pollInterval">How often to check for annotations in seconds</param>
+    public void StartAnnotationPolling(float pollInterval = 1.0f)
+    {
+        if (_isPollingAnnotations)
+        {
+            Debug.LogWarning("Annotation polling is already running");
+            return;
+        }
+
+        _annotationPollInterval = pollInterval;
+        _isPollingAnnotations = true;
+        _annotationPollingCoroutine = StartCoroutine(PollForAnnotations());
+
+        Debug.Log($"🎯 Started annotation polling every {pollInterval} seconds");
+    }
+
+    /// <summary>
+    /// Stop polling for annotations
+    /// </summary>
+    public void StopAnnotationPolling()
+    {
+        _isPollingAnnotations = false;
+
+        if (_annotationPollingCoroutine != null)
+        {
+            StopCoroutine(_annotationPollingCoroutine);
+            _annotationPollingCoroutine = null;
+        }
+
+        Debug.Log("🛑 Stopped annotation polling");
+    }
+
+    /// <summary>
+    /// Get the latest annotation from the server (single request)
+    /// </summary>
+    public void GetLatestAnnotation()
+    {
+        StartCoroutine(GetLatestAnnotationCoroutine());
+    }
+
+    /// <summary>
+    /// Mark annotations as processed by Unity
+    /// </summary>
+    /// <param name="annotationIds">Array of annotation IDs that have been processed</param>
+    public void MarkAnnotationsAsProcessed(int[] annotationIds)
+    {
+        StartCoroutine(MarkAnnotationsProcessedCoroutine(annotationIds));
+    }
+
+    private IEnumerator PollForAnnotations()
+    {
+        while (_isPollingAnnotations)
+        {
+            yield return new WaitForSeconds(_annotationPollInterval);
+            yield return StartCoroutine(GetLatestAnnotationCoroutine());
+        }
+    }
+
+    private IEnumerator GetLatestAnnotationCoroutine()
+    {
+        string url = _serverUri + "/get-latest-annotation";
+
+        using (UnityWebRequest request = UnityWebRequest.Get(url))
+        {
+            // Add certificate handler for HTTPS
+            request.certificateHandler = new AcceptAnyCertificate();
+            request.disposeCertificateHandlerOnDispose = true;
+
+            yield return request.SendWebRequest();
+
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                try
+                {
+                    string responseText = request.downloadHandler.text;
+                    Debug.Log($"📥 Annotation response: {responseText}");
+
+                    AnnotationResponse response = JsonUtility.FromJson<AnnotationResponse>(responseText);
+
+                    if (response.status == "success" && response.annotation != null)
+                    {
+                        Debug.Log($"🎯 New annotation received: ID {response.annotation.id}");
+                        Debug.Log($"📊 Center: ({response.annotation.center[0]}, {response.annotation.center[1]})");
+                        Debug.Log($"📐 Pose matrix elements: {response.annotation.pose_matrix?.Length ?? 0}");
+
+                        // Notify listeners (your ARPlaceCube script can subscribe to this)
+                        OnNewAnnotationReceived?.Invoke(response.annotation);
+                    }
+                    else if (response.status == "no_annotations")
+                    {
+                        // No new annotations - this is normal, don't spam logs
+                    }
+                    else if (response.status == "already_processed")
+                    {
+                        // Already processed - this is normal
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"⚠️ Unexpected annotation response status: {response.status}");
+                    }
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError($"❌ Error parsing annotation response: {e.Message}");
+                    OnAnnotationError?.Invoke($"Failed to parse annotation: {e.Message}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"⚠️ Failed to get annotations: {request.error}");
+                OnAnnotationError?.Invoke($"Network error: {request.error}");
+            }
+        }
+    }
+
+    private IEnumerator MarkAnnotationsProcessedCoroutine(int[] annotationIds)
+    {
+        string url = _serverUri + "/mark-annotations-processed";
+
+        ProcessedAnnotations payload = new ProcessedAnnotations
+        {
+            processed_ids = annotationIds
+        };
+
+        string jsonPayload = JsonUtility.ToJson(payload);
+        byte[] postData = Encoding.UTF8.GetBytes(jsonPayload);
+
+        using (UnityWebRequest request = new UnityWebRequest(url, "POST"))
+        {
+            request.uploadHandler = new UploadHandlerRaw(postData);
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+
+            request.certificateHandler = new AcceptAnyCertificate();
+            request.disposeCertificateHandlerOnDispose = true;
+
+            yield return request.SendWebRequest();
+
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                Debug.Log($"✅ Marked {annotationIds.Length} annotations as processed");
+            }
+            else
+            {
+                Debug.LogWarning($"⚠️ Failed to mark annotations as processed: {request.error}");
+            }
+        }
+    }
+
+    /// <summary>
     /// Log out and disconnect from the server.
     /// </summary>
     public void Disconnect()
     {
+        StopAnnotationPolling();
         _webRequestManager.HttpPost(_serverUri + "/logout/" + _localId, string.Empty);
     }
+
+
 }
