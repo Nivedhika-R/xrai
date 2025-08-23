@@ -119,6 +119,38 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &143711265
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 143711266}
+  m_Layer: 0
+  m_Name: Camera Offset
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &143711266
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 143711265}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 1.36144, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 2054489817}
+  m_Father: {fileID: 1729893656}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &300104549
 GameObject:
   m_ObjectHideFlags: 0
@@ -442,7 +474,7 @@ GameObject:
   - component: {fileID: 839113652}
   m_Layer: 0
   m_Name: XAIRClient
-  m_TagString: Untagged
+  m_TagString: MainCamera
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -474,7 +506,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a872189ff743944f68812b05ac47ede0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ipAddress: 192.168.4.140
+  ipAddress: 172.26.50.34
   port: 8000
   noSSL: 0
   _serverCommunication: {fileID: 404426534}
@@ -645,7 +677,6 @@ MonoBehaviour:
   _androidCameraDeviceManager: {fileID: 899961968}
   _webCamDeviceManager: {fileID: 899961966}
   _microphoneManager: {fileID: 768993880}
-  _useMLCamera: 1
 --- !u!114 &899961968
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -804,7 +835,7 @@ Transform:
   - {fileID: 404426533}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1727081773
+--- !u!1 &1729893654
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -812,58 +843,61 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1727081775}
-  - component: {fileID: 1727081774}
-  - component: {fileID: 1727081777}
-  - component: {fileID: 1727081776}
-  - component: {fileID: 1727081778}
+  - component: {fileID: 1729893656}
+  - component: {fileID: 1729893655}
+  - component: {fileID: 1729893659}
+  - component: {fileID: 1729893658}
+  - component: {fileID: 1729893657}
+  - component: {fileID: 1729893662}
+  - component: {fileID: 1729893661}
+  - component: {fileID: 1729893660}
   m_Layer: 0
   m_Name: XR Origin
-  m_TagString: Untagged
+  m_TagString: MainCamera
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1727081774
+--- !u!114 &1729893655
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1727081773}
+  m_GameObject: {fileID: 1729893654}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e0cb9aa70a22847b5925ee5f067c10a9, type: 3}
+  m_Script: {fileID: 11500000, guid: a2483b9bd782f9449a5972b61b7d51a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_Camera: {fileID: 2054489822}
-  m_OriginBaseGameObject: {fileID: 1727081773}
-  m_CameraFloorOffsetObject: {fileID: 1753308563}
-  m_RequestedTrackingOriginMode: 1
-  m_CameraYOffset: 1.1176
---- !u!4 &1727081775
+  m_CameraFloorOffsetObject: {fileID: 143711265}
+  m_RequestedTrackingMode: 1
+  m_TrackingOriginMode: 1
+  m_TrackingSpace: 0
+  m_CameraYOffset: 1.36144
+--- !u!4 &1729893656
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1727081773}
+  m_GameObject: {fileID: 1729893654}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1753308564}
+  - {fileID: 143711266}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1727081776
+--- !u!114 &1729893657
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1727081773}
+  m_GameObject: {fileID: 1729893654}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e1760703bbd54c04488a8d10600262ab, type: 3}
@@ -874,26 +908,72 @@ MonoBehaviour:
       m_Calls: []
   m_PlanePrefab: {fileID: 4786440416658112026, guid: 88e004f7e3e98c728957f28424b120fe, type: 3}
   m_DetectionMode: -1
---- !u!114 &1727081777
+--- !u!114 &1729893658
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1727081773}
+  m_GameObject: {fileID: 1729893654}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 19f687528fa5c88c996eac4415053157, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   raycastManager: {fileID: 0}
---- !u!114 &1727081778
+  planeManager: {fileID: 0}
+  pointCloudManager: {fileID: 0}
+  serverCommunication: {fileID: 404426534}
+  annotationPrefab: {fileID: 0}
+  enableAnnotationSystem: 1
+  annotationSize: 0.05
+  alwaysFaceCamera: 1
+  minDistanceFromCamera: 0.5
+  maxDistanceFromCamera: 50
+  clearPreviousAnnotations: 1
+  clearOnNewAnnotation: 1
+  clearOnTestAnnotation: 1
+  xOffset: 0.15
+  yMultiplier: 1.2
+  useCustomTransform: 1
+  microXOffset: 0
+  microYOffset: 0
+  enableSubPixelTuning: 1
+  usePoseMatrixDepth: 1
+  maxRaycastDistance: 65
+  defaultDepth: 2
+  minDepth: 0.3
+  prioritizeCloseObjects: 1
+  debugDepthCalculation: 1
+  alwaysCreateAnnotation: 1
+  fallbackDepth: 2
+  debugAnnotations: 1
+  showDetailedLogs: 1
+  createTestAnnotationOnStart: 0
+--- !u!114 &1729893659
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1727081773}
+  m_GameObject: {fileID: 1729893654}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e0cb9aa70a22847b5925ee5f067c10a9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Camera: {fileID: 2054489822}
+  m_OriginBaseGameObject: {fileID: 1729893654}
+  m_CameraFloorOffsetObject: {fileID: 143711265}
+  m_RequestedTrackingOriginMode: 1
+  m_CameraYOffset: 1.1176
+--- !u!114 &1729893660
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1729893654}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fa17d122634046b4a8e23048891fafc5, type: 3}
@@ -902,39 +982,34 @@ MonoBehaviour:
   <trackablesChanged>k__BackingField:
     m_PersistentCalls:
       m_Calls: []
-  m_RaycastPrefab: {fileID: 8102565254916474487, guid: 70320d9f4885ad75282e86c724b4f272, type: 3}
---- !u!1 &1753308563
-GameObject:
+  m_RaycastPrefab: {fileID: 2428788912177607916, guid: df7a1cf8c363f6247a62793e6f18d343, type: 3}
+--- !u!114 &1729893661
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1753308564}
-  m_Layer: 0
-  m_Name: Camera Offset
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &1753308564
-Transform:
+  m_GameObject: {fileID: 1729893654}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 907ac88a09ba24072899070549de94e7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_DestroyOnRemoval: 1
+--- !u!114 &1729893662
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1753308563}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 2054489817}
-  m_Father: {fileID: 1727081775}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_GameObject: {fileID: 1729893654}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5f66da7470dce8f4d821d71dd2b1d4ac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_DestroyOnRemoval: 1
+  m_VertexChangedThreshold: 0.01
 --- !u!1 &2054489816
 GameObject:
   m_ObjectHideFlags: 0
@@ -949,6 +1024,7 @@ GameObject:
   - component: {fileID: 2054489820}
   - component: {fileID: 2054489819}
   - component: {fileID: 2054489818}
+  - component: {fileID: 2054489823}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -966,10 +1042,10 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1753308564}
+  m_Father: {fileID: 143711266}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &2054489818
 MonoBehaviour:
@@ -1144,7 +1220,7 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.1
+  near clip plane: 0.01
   far clip plane: 20
   field of view: 60
   orthographic: 0
@@ -1164,6 +1240,24 @@ Camera:
   m_OcclusionCulling: 1
   m_StereoConvergence: 10
   m_StereoSeparation: 0.022
+--- !u!114 &2054489823
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2054489816}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5a2a9c34df4095f47b9ca8f975175f5b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Device: 0
+  m_PoseSource: 2
+  m_PoseProviderComponent: {fileID: 0}
+  m_TrackingType: 0
+  m_UpdateType: 0
+  m_UseRelativeTransform: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -1172,5 +1266,5 @@ SceneRoots:
   - {fileID: 839113650}
   - {fileID: 1062607236}
   - {fileID: 433487569}
-  - {fileID: 1727081775}
   - {fileID: 300104552}
+  - {fileID: 1729893656}

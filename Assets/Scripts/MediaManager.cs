@@ -106,6 +106,8 @@ public class MediaManager : Singleton<MediaManager>
 
         // Read pixels from RenderTexture (still runs on main thread)
         tex.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
+        //Debug.Log(renderTexture.width);
+        //Debug.Log( renderTexture.height);
         tex.Apply();
 
         // Wait for a frame to avoid blocking the current frame

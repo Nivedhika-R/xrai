@@ -20,8 +20,8 @@ public class WebCamManager : MonoBehaviour, ICameraDeviceManager
     private RenderTexture _readTexture;
     private WebCamTexture _webCamTexture;
 
-    private const int WIDTH = 1280;
-    private const int HEIGHT = 720;
+    private const int WIDTH = 2400;
+    private const int HEIGHT = 1080;
 
     /// <summary>
     /// Gets the Render Texture that represents the web cam.
