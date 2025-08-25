@@ -1,0 +1,119 @@
+[33m87152d4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32msruthi-main[m[33m, [m[1;31msruthi/main[m[33m, [m[1;31msruthi/HEAD[m[33m, [m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m Initial Commit
+[33m8eb5819[m[33m ([m[1;31msruthi/nivedhika[m[33m)[m server to unity conn
+[33ma124e69[m server to unity conn
+[33m624bd25[m end to end comm
+[33mf7e7368[m android sends images
+[33mc6562ab[m gradio file
+[33mbde6537[m server communication
+[33m96fb0c1[m Resolved merge conflicts
+[33m6b13065[m xrai
+[33md2b7fe9[m changed preview and server to receive annotated coordinates
+[33m10a4eee[m new branch
+[33m01581f3[m[33m ([m[1;31msruthi/android_mobile[m[33m, [m[1;32mandroid_mobile[m[33m)[m kinda works with android
+[33m3131255[m Fixed sending only 1 image bug and format issue for not instruction following case
+[33mb15db86[m sensys
+[33mf4f9c2c[m added image to unity
+[33m9ffb104[m changed images
+[33m6df04e5[m change to gpt-4.1
+[33mb5912d8[m Added positions to jsons
+[33mae531f0[m Improved UI of preview
+[33m781fc07[m :wqMerge branch 'main' of github.com:srutisrinidhi/xair-dev
+[33m54f7823[m Finally fixed color issues
+[33m7ace436[m made small tweaks to inst
+[33mc7c6b71[m Merge branch 'main' of https://github.com/srutisrinidhi/xair-dev
+[33m3080f54[m added image to unity
+[33ma698467[m fix client code typo
+[33md318dc3[m preview with llm_images -Audi
+[33m64dc28b[m remove yolo image to chatgpt
+[33m1642c0d[m improve prompt
+[33m38d0931[m Merge branch 'main' of https://github.com/srutisrinidhi/xair-dev
+[33m0e70d93[m added new circuit
+[33mce89407[m Changed the order of instructions
+[33me1d945e[m merge conflict resolved
+[33m75d3171[m added image of board to unity and made changes to try to fix stalling bug
+[33m1ff6ac4[m Merge branch 'main' of github.com:srutisrinidhi/xair-dev
+[33mea8640d[m added manual override back, and more prompt chjanges
+[33m96322f5[m Merge branch 'main' of https://github.com/srutisrinidhi/xair-dev
+[33m436d673[m truly changed frame rate
+[33md57189c[m Merge branch 'main' of github.com:srutisrinidhi/xair-dev
+[33mf1a593c[m added image details ollama compatibility
+[33m0429fdc[m added apriltag to pip requirements
+[33m3384bc2[m Merge branch 'main' of https://github.com/srutisrinidhi/xair-dev
+[33m58d70a7[m added annotations on images
+[33ma8a36ed[m Merge branch 'main' of github.com:srutisrinidhi/xair-dev
+[33m57fb6cd[m Added board tracking
+[33m1ffd7d4[m Merge branch 'main' of https://github.com/srutisrinidhi/xair-dev
+[33mb966da2[m added april tag images
+[33m1056272[m tweaked prompt and instructions
+[33m95daf5e[m tweaked prompt and instructions and removed yolo to improve accuracy
+[33mff57548[m try white balance
+[33mdf6a596[m improve accuracy; new images; add audio ding; improve ui
+[33m1132ad1[m Added the preview window as a gradio server
+[33mf49892e[m Merge branch 'main' of https://github.com/srutisrinidhi/xair-dev
+[33m37410e6[m Added more detail to instructions
+[33m305bd30[m more ui edits
+[33m50f178a[m Merge pull request #4 from srutisrinidhi/ui
+[33mb7f9770[m finish ui improvements
+[33m6b8ca3d[m finish ui improvements
+[33mb58223d[m use localhost as default
+[33mc722779[m improve ui
+[33m87f5e6f[m misc updates
+[33mfa5ce42[m misc changes
+[33mf0f9162[m finalizing preview, gradio still todo
+[33mff1e074[m fixed labels
+[33m3a378ce[m Merge branch 'main' of github.com:srutisrinidhi/xair-dev
+[33m5bd0c2a[m fixed aliasing, images overwritten now
+[33mf88fe87[m no longer over writing images
+[33m829e67e[m Merge branch 'main' of github.com:srutisrinidhi/xair-dev
+[33m9d15525[m fixed preview
+[33m7842b88[m Merge branch 'main' of https://github.com/srutisrinidhi/xair-dev
+[33m7153c83[m added prompt changes and sample images
+[33m438f4e8[m merging preview
+[33me346c24[m add better classnames to yolo visualization
+[33me9198cf[m changed input names
+[33mae46dce[m add yolo in
+[33m04a8081[m Merge branch 'main' of https://github.com/srutisrinidhi/xair-dev
+[33m07649fb[m Removed whisper and added more prompt changes
+[33mdbeeb39[m fix instructions
+[33mc9f4065[m load instructions and objects
+[33m610c278[m add yolo back
+[33mc235260[m prompt edit
+[33m6fba110[m tweaks to prompt and instructions
+[33md867fea[m merge conflicts
+[33mc209003[m merge conflicts
+[33m729e2a9[m Changed the prompts to improve LLM detection
+[33mfa9c66b[m load instructions and objects
+[33me081291[m added input list
+[33m6861747[m Merge branch 'main' of https://github.com/srutisrinidhi/xair-dev
+[33m256b58b[m add instructions for snap circuits
+[33m7e12da6[m add instructions for snap circuits
+[33m65aeb47[m merge
+[33m83e43e2[m Condensed server instructing to server with a new command line arg
+[33md470861[m fix yolo and print confidence
+[33m7fda0ec[m faster performance
+[33m9fd449c[m Merge branch 'main' of https://github.com/srutisrinidhi/xair-dev
+[33m2266080[m Added raycasting changes to the instructing script and added manual step override by typing n
+[33m57a644a[m Update server.py
+[33m917eeaa[m minor error fixed
+[33mc9cca0d[m Merge branch 'main' of github.com:srutisrinidhi/xair-dev
+[33m38ea973[m fixed the raycasting misalignment
+[33mf70a854[m Merge pull request #2 from srutisrinidhi/tutorial_integration
+[33ma49da42[m added query_collector.py, tutorial_follower.py, and server_instructing.py and modified utils.py to add tutorial following capabilities
+[33me0a7f81[m yolo scripts + dataset and yaml added
+[33mb50c916[m Merge branch 'main' of github.com:srutisrinidhi/xair-dev
+[33md48e997[m preview: image + llm reply
+[33m4ef15c3[m add double pinch to hide llm dialog
+[33m612d4ff[m Merge pull request #1 from srutisrinidhi/llm-query-opt
+[33m5137a0a[m preview fix oops
+[33mb5b7d3f[m preview prototype (not tested yet)
+[33m618eea8[m model added
+[33mada6d49[m requirements updated and new model added
+[33m2b17196[m updated requirements to include new stuff for yolo
+[33m80485fc[m unity setup
+[33m9fd5f06[m add yolo
+[33me3f209c[m add raycasting
+[33mda86618[m add meshing
+[33m1c1e350[m add audio processing
+[33mff557f2[m add chatgpt
+[33m288957c[m send images
+[33m01dabd2[m initial commit
