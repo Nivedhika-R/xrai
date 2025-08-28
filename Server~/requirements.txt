@@ -35,10 +35,9 @@ torchaudio==2.6.0
 torchvision==0.21.0
 
 openai==1.61.1
-openai-whisper @ git+https://github.com/openai/whisper.git@517a43ecd132a2089d85f4ebc044728a71d49f6e
+# openai-whisper @ git+https://github.com/openai/whisper.git@517a43ecd132a2089d85f4ebc044728a71d49f6e
 
 accelerate==0.21.0
-sentencepiece==0.1.99
 einops==0.6.1
 
 pupil_apriltags

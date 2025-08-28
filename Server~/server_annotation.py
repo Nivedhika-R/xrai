@@ -23,16 +23,16 @@ from collections import defaultdict
 from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
 from logger import logger
-from constants import *
+# from constants import *
 
 # from chatgpt_helper import ChatGPTHelper
 
 # from whisper_helper import RemoteAudioToWhisper
 
 # from yolo_helper import YoloHelper
-from frame import Frame
+# from frame import Frame
 # from tutorial_follower import TutorialFollower
-from board_tracker import BoardTracker
+# from board_tracker import BoardTracker
 from debugger import Debugger
 
 server_id = 0
@@ -48,7 +48,7 @@ msg_queue = Queue()
 image_bgr = deque()
 
 # chatgpt = ChatGPTHelper()
-board_tracker = BoardTracker()
+# board_tracker = BoardTracker()
 # yolo = None
 
 #tutorial_follower = None
