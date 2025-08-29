@@ -16,24 +16,13 @@ from collections import deque, namedtuple
 import cv2
 from PIL import Image, ImageEnhance
 from io import BytesIO
+from logger import logger
 
 import numpy as np
 
 from collections import defaultdict
 from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate
-from logger import logger
-# from constants import *
-
-# from chatgpt_helper import ChatGPTHelper
-
-# from whisper_helper import RemoteAudioToWhisper
-
-# from yolo_helper import YoloHelper
-# from frame import Frame
-# from tutorial_follower import TutorialFollower
-# from board_tracker import BoardTracker
-from debugger import Debugger
 
 server_id = 0
 next_client_id = 1
@@ -46,16 +35,6 @@ ices = defaultdict(list)
 
 msg_queue = Queue()
 image_bgr = deque()
-
-# chatgpt = ChatGPTHelper()
-# board_tracker = BoardTracker()
-# yolo = None
-
-#tutorial_follower = None
-
-# llm_reply = None
-
-# llm_images = []
 
 debugger = None
 latest_pose_data = {}
@@ -295,23 +274,6 @@ async def post_image(request):
         instrinsics = data.get("instrinsics", [])
         distortion = data.get("distortion", [])
 
-        # 🔍 DEBUG: Check pose matrix data
-        # logger.info("🔍 DEBUG: Pose matrix data from Unity:")
-        # logger.info(f"   cameraToWorldMatrix length: {len(camera_to_world)}")
-        # logger.info(f"   instrinsics length: {len(instrinsics)}")
-        # logger.info(f"   distortion length: {len(distortion)}")
-
-        # if len(camera_to_world) == 16:
-        #     logger.info("✅ Camera-to-world matrix received (16 elements)")
-        #     logger.info(f"   First 4 elements: {camera_to_world[:4]}")
-        # else:
-        #     logger.warning("❌ Camera-to-world matrix MISSING or wrong size")
-
-        # if len(instrinsics) == 16:
-        #     logger.info("✅ Intrinsics matrix received (16 elements)")
-        # else:
-        #     logger.warning("❌ Intrinsics matrix MISSING or wrong size")
-
         # Store pose data globally
         latest_pose_data = {
             "camera_to_world": camera_to_world,
@@ -430,29 +392,6 @@ async def submit_annotation(request):
             logger.info(f"📊 Center: ({center_x}, {center_y})")
             logger.info(f"📐 Pose matrix: {'Available' if pose_matrix else 'Not available'}")
             logger.info(f"📤 Queued for Unity: {len(annotation_queue)} annotations pending")
-
-            # # Enhanced logging
-            # logger.info("=" * 50)
-            # logger.info("🎯 ANNOTATION RECEIVED")
-            # logger.info("=" * 50)
-            # logger.info(f"📁 Saved as: {filename}")
-            # logger.info(f"📊 Total annotation points: {len(coordinates)}")
-            # logger.info(f"🎯 CENTER: ({center_x}, {center_y})")
-            # logger.info(f"📦 BOUNDING BOX:")
-            # logger.info(f"   Top-left: ({min_x}, {min_y})")
-            # logger.info(f"   Bottom-right: ({max_x}, {max_y})")
-            # logger.info(f"   Size: {max_x - min_x} x {max_y - min_y} pixels")
-
-            # if pose_matrix:
-            #     logger.info(f"📐 POSE MATRIX: Included ({len(pose_matrix)} elements)")
-            #     # You can process the pose matrix here for your specific needs
-            # else:
-            #     logger.info("📐 POSE MATRIX: Not available")
-
-            # logger.info("=" * 50)
-
-            # # Here you can add your specific processing logic
-            # # For example, convert image coordinates to world coordinates using pose matrix
 
         return web.json_response({
             "status": "success",
@@ -609,10 +548,6 @@ if __name__ == "__main__":
     }
     log_level = verbosity_map.get(args.verbosity, logging.DEBUG)
     logger.setLevel(log_level)
-    #yolo = YoloHelper(args.yolo_model)
-    # if args.instruct:
-    #     tutorial_follower = TutorialFollower(image_bgr, board_tracker=board_tracker)
-    #     debugger = Debugger(tutorial_follower)
     run_server(args)
 
 

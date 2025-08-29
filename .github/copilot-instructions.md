@@ -1,5 +1,5 @@
 <!-- UNITY CODE ASSIST INSTRUCTIONS START -->
-- Project name: xair-dev
+- Project name: xr-care
 - Unity version: Unity 6000.1.12f1
 - Active scene:
   - Name: XaiRScene
@@ -8,7 +8,7 @@
   - Layers:
     - Default, TransparentFX, Ignore Raycast, Water, UI
 - Active game object:
-  - Name: XAIRClient
-  - Tag: MainCamera
+  - Name: WebRTCController
+  - Tag: Untagged
   - Layer: Default
 <!-- UNITY CODE ASSIST INSTRUCTIONS END -->
